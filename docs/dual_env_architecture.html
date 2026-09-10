@@ -1,0 +1,107 @@
+<style>
+:root {
+  --surface: #F7F7F8; --surface-muted: #EFEFF2;
+  --text: #171717; --text-muted: #52525B;
+  --border: rgba(23,23,23,0.12);
+  --brand: #4B3FE3; --brand-soft: #F2F7FF; --brand-text: #1A1759;
+  --font-sans: "SF Pro Text","PingFang SC",system-ui,sans-serif;
+  --text-caption: 12px/18px; --text-body: 14px/20px; --text-code: 13px/20px;
+}
+:root[data-widget-theme="dark"] {
+  --surface: #171717; --surface-muted: #262626;
+  --text: #E5E5E5; --text-muted: #A1A1AA;
+  --border: rgba(229,229,229,0.12);
+  --brand: #6054F1; --brand-soft: #1A1759; --brand-text: #CFD8FF;
+}
+.arch-w { color: var(--text); }
+.arch-server { fill: none; stroke: var(--border); stroke-dasharray: 6 4; }
+.arch-brand-box { fill: var(--brand-soft); stroke: var(--brand); stroke-width: 1.5; }
+.arch-neutral { fill: var(--surface); stroke: var(--border); }
+.arch-label-bg { fill: var(--surface); stroke: var(--border); }
+.arch-conn { fill: none; stroke: var(--text-muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.arch-arrow { fill: var(--text-muted); }
+.arch-t-title { font: 500 var(--text-body) var(--font-sans); fill: var(--text); }
+.arch-t-muted { font: 400 var(--text-caption) var(--font-sans); fill: var(--text-muted); }
+.arch-t-port { font: 400 var(--text-code) var(--font-sans); fill: var(--text-muted); }
+.arch-t-label { font: 400 var(--text-body) var(--font-sans); fill: var(--text); }
+.arch-t-brand-t { font: 500 var(--text-body) var(--font-sans); fill: var(--brand-text); }
+.arch-t-brand-s { font: 400 var(--text-caption) var(--font-sans); fill: var(--brand); }
+.arch-t-server { font: 500 var(--text-caption) var(--font-sans); fill: var(--text-muted); }
+</style>
+
+<div class="arch-w" data-dynamic-ui-widget data-template="architecture-elements" data-mounted="true">
+<svg viewBox="0 0 720 480" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto">
+      <path class="arch-arrow" d="M1 1 L7 4 L1 7 Z"/>
+    </marker>
+  </defs>
+
+  <!-- Server boundary -->
+  <rect class="arch-server" x="24" y="28" width="672" height="440" rx="12"/>
+  <text class="arch-t-server" x="48" y="48">单台服务器</text>
+
+  <!-- Nginx (brand focal) -->
+  <rect class="arch-brand-box" x="280" y="60" width="160" height="48" rx="8"/>
+  <text class="arch-t-brand-t" x="360" y="80" text-anchor="middle">Nginx</text>
+  <text class="arch-t-brand-s" x="360" y="97" text-anchor="middle">80 / 443 · 子域名分发</text>
+
+  <!-- Connectors -->
+  <path class="arch-conn" d="M 360 108 C 320 126 260 150 192 176" marker-end="url(#a-arrow)"/>
+  <path class="arch-conn" d="M 360 108 C 400 126 460 150 528 176" marker-end="url(#a-arrow)"/>
+
+  <!-- Connector labels -->
+  <rect class="arch-label-bg" x="222" y="118" width="96" height="20" rx="10"/>
+  <text class="arch-t-muted" x="270" y="132" text-anchor="middle">your-domain.com</text>
+  <rect class="arch-label-bg" x="458" y="118" width="104" height="20" rx="10"/>
+  <text class="arch-t-muted" x="510" y="132" text-anchor="middle">test.xxx.com</text>
+
+  <!-- Production boundary -->
+  <rect class="arch-server" x="48" y="148" width="288" height="284" rx="12"/>
+  <text class="arch-t-title" x="192" y="168" text-anchor="middle">生产环境</text>
+
+  <!-- Prod services -->
+  <rect class="arch-neutral" x="72" y="182" width="240" height="44" rx="8"/>
+  <text class="arch-t-label" x="88" y="209">API (NestJS)</text>
+  <text class="arch-t-port" x="296" y="209" text-anchor="end">:3000</text>
+
+  <rect class="arch-neutral" x="72" y="242" width="240" height="44" rx="8"/>
+  <text class="arch-t-label" x="88" y="269">PostgreSQL</text>
+  <text class="arch-t-port" x="296" y="269" text-anchor="end">:5432</text>
+
+  <rect class="arch-neutral" x="72" y="302" width="240" height="44" rx="8"/>
+  <text class="arch-t-label" x="88" y="329">Redis</text>
+  <text class="arch-t-port" x="296" y="329" text-anchor="end">:6379</text>
+
+  <text class="arch-t-muted" x="192" y="390" text-anchor="middle">无资源限制 · 高可用配置</text>
+  <text class="arch-t-muted" x="192" y="408" text-anchor="middle">数据卷: pg_data / redis_data</text>
+
+  <!-- Test boundary -->
+  <rect class="arch-server" x="384" y="148" width="288" height="284" rx="12"/>
+  <text class="arch-t-title" x="528" y="168" text-anchor="middle">测试环境</text>
+
+  <!-- Test services -->
+  <rect class="arch-neutral" x="408" y="182" width="240" height="44" rx="8"/>
+  <text class="arch-t-label" x="424" y="209">API (NestJS)</text>
+  <text class="arch-t-port" x="632" y="209" text-anchor="end">:13000</text>
+
+  <rect class="arch-neutral" x="408" y="242" width="240" height="44" rx="8"/>
+  <text class="arch-t-label" x="424" y="269">PostgreSQL</text>
+  <text class="arch-t-port" x="632" y="269" text-anchor="end">:15432</text>
+
+  <rect class="arch-neutral" x="408" y="302" width="240" height="44" rx="8"/>
+  <text class="arch-t-label" x="424" y="329">Redis</text>
+  <text class="arch-t-port" x="632" y="329" text-anchor="end">:16379</text>
+
+  <text class="arch-t-muted" x="528" y="390" text-anchor="middle">CPU ≤ 1.7核 / 内存 ≤ 1.75GB</text>
+  <text class="arch-t-muted" x="528" y="408" text-anchor="middle">数据卷: pg_test_data / redis_test_data</text>
+
+  <!-- Legend -->
+  <rect class="arch-server" x="100" y="444" width="16" height="12" rx="4"/>
+  <text class="arch-t-muted" x="124" y="454">环境边界（隔离）</text>
+  <rect class="arch-brand-box" x="300" y="444" width="16" height="12" rx="4"/>
+  <text class="arch-t-muted" x="324" y="454">共享服务</text>
+  <rect class="arch-neutral" x="480" y="444" width="16" height="12" rx="4"/>
+  <text class="arch-t-muted" x="504" y="454">独立服务</text>
+</svg>
+</div>
