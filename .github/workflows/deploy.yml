@@ -1,0 +1,47 @@
+name: Deploy Prod
+
+# 生产环境只支持手动触发，防止误操作
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '输入 YES 确认部署生产环境'
+        required: true
+        default: ''
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false  # 部署绝不允许被取消
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 二次确认
+        if: github.event.inputs.confirm != 'YES'
+        run: |
+          echo "::error::必须输入 YES 确认才能部署生产环境"
+          exit 1
+
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 通过 SSH 部署到生产环境
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            cd /opt/splitter
+            ./scripts/deploy-prod.sh ${{ github.sha }}
+
+      - name: 生产环境冒烟测试
+        run: |
+          bash scripts/smoke-test.sh \
+            http://${{ secrets.SERVER_HOST }}:8082 \
+            http://${{ secrets.SERVER_HOST }}:3002

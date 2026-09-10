@@ -1,0 +1,45 @@
+name: Deploy Test
+
+# 触发条件：CI 成功完成 + push 到 develop 分支
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [develop]
+  # 也支持手动触发
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false  # 部署不允许被取消
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 只有 CI 成功才自动部署
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 通过 SSH 部署到测试环境
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            cd /opt/splitter-test
+            ./scripts/deploy-test.sh ${{ github.sha }}
+
+      - name: 冒烟测试
+        run: |
+          bash scripts/smoke-test.sh \
+            http://${{ secrets.SERVER_HOST }}:8081 \
+            http://${{ secrets.SERVER_HOST }}:3001

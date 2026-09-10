@@ -1,0 +1,125 @@
+name: CI
+
+# 触发条件：推送到 main/develop 分支，或向 main/develop 提 PR
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# 并发控制：同一分支的新推送取消旧的 CI，节省资源
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  BACKEND_IMAGE: ghcr.io/${{ github.repository }}-backend
+  FRONTEND_IMAGE: ghcr.io/${{ github.repository }}-frontend
+
+jobs:
+  # ========== 后端 CI ==========
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: 安装依赖
+        working-directory: server
+        run: npm ci
+
+      - name: Lint 代码规范检查
+        working-directory: server
+        run: npm run lint
+
+      - name: TypeScript 类型检查
+        working-directory: server
+        run: npx tsc --noEmit
+
+      - name: 单元测试
+        working-directory: server
+        run: npm run test -- --coverage
+        continue-on-error: true  # 初期没有测试时先不阻断
+
+      - name: 登录 GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送后端镜像
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: server
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:latest
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+
+  # ========== 前端 CI ==========
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 安装依赖
+        working-directory: web
+        run: npm ci
+
+      - name: Lint 代码规范检查
+        working-directory: web
+        run: npm run lint
+
+      - name: TypeScript 类型检查
+        working-directory: web
+        run: npm run type-check || npx vue-tsc --noEmit
+
+      - name: 单元测试
+        working-directory: web
+        run: npm run test:unit -- --run
+        continue-on-error: true  # 初期没有测试时先不阻断
+
+      - name: 登录 GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送前端镜像
+        if: github.event_name == 'push'
+        uses: docker/build-push-action@v5
+        with:
+          context: web
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:latest
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}

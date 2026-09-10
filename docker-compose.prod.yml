@@ -1,0 +1,94 @@
+# ========== 生产环境 Docker Compose ==========
+# 用法：docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+# 说明：与测试环境共享 PostgreSQL 和 Redis 实例，通过不同数据库名和 Redis DB 隔离
+
+services:
+  # ===== 共享 PostgreSQL =====
+  postgres:
+    image: postgres:14-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - splitter_prod
+    mem_limit: 384m
+    memswap_limit: 384m
+
+  # ===== 共享 Redis =====
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - splitter_prod
+    mem_limit: 128m
+    memswap_limit: 128m
+
+  # ===== 生产后端 =====
+  backend-prod:
+    image: ${BACKEND_IMAGE}:${BACKEND_SHA}
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      REDIS_DB: ${REDIS_DB}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+    ports:
+      - "${BACKEND_PORT}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - splitter_prod
+    mem_limit: 384m
+    memswap_limit: 384m
+
+  # ===== 生产前端 =====
+  frontend-prod:
+    image: ${FRONTEND_IMAGE}:${FRONTEND_SHA}
+    restart: always
+    environment:
+      API_BASE_URL: ${API_BASE_URL}
+    ports:
+      - "${FRONTEND_PORT}:80"
+    networks:
+      - splitter_prod
+    mem_limit: 32m
+    memswap_limit: 32m
+
+networks:
+  splitter_prod:
+    driver: bridge
+
+volumes:
+  pg_data:
+  redis_data:

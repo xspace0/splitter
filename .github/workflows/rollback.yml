@@ -1,0 +1,37 @@
+name: Rollback
+
+# 一键回滚 —— 手动触发
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '回滚哪个环境'
+        required: true
+        type: choice
+        options: [test, prod]
+      sha:
+        description: '回滚到哪个 commit SHA（完整40位）'
+        required: true
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 通过 SSH 执行回滚
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          script: |
+            cd /opt/splitter
+            ./scripts/rollback.sh ${{ github.event.inputs.environment }} ${{ github.event.inputs.sha }}
