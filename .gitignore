@@ -57,5 +57,5 @@ coverage/
 *.temp
 
 # 本地密钥配置（绝不能提交）
-scripts/secrets.local.ps1
+scripts/secrets.local
 .tmp_key
