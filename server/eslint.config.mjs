@@ -28,5 +28,5 @@ export default [
   {
     ignores: ['dist/', 'node_modules/', 'coverage/'],
   },
-  prettier.configs,
+  prettier,
 ];
