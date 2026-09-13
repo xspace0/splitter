@@ -1,0 +1,169 @@
+// 分光器资源管理系统 - Prisma Schema
+// 设计原则：无物理外键，逻辑删除，应用层校验
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ 枚举 ============
+
+enum RoleType {
+  SUPER_ADMIN   // 1: 超级管理员
+  REGION_ADMIN  // 2: 区域管理员
+  ADMIN         // 3: 管理员
+  OPERATOR      // 4: 操作员
+  VIEWER        // 5: 查看者
+}
+
+enum CommunityStatus {
+  ACTIVE   // 1: 正常
+  DISABLED // 0: 停用
+}
+
+enum SplitterStatus {
+  NORMAL  // 1: 正常
+  FAULT   // 2: 故障
+  STOPPED // 3: 停用
+}
+
+enum SplitterLevel {
+  OPTICAL_CROSS  // 1: 光交
+  LEVEL1_SPLITTER // 2: 一级分光器
+  LEVEL2_SPLITTER // 3: 二级分光器
+  CABLE_TERMINAL  // 4: 光缆成端
+}
+
+enum UserStatus {
+  ACTIVE   // 1: 启用
+  DISABLED // 0: 禁用
+}
+
+enum AssignStatus {
+  ACTIVE    // 1: 有效
+  REMOVED   // 0: 已移除
+}
+
+enum RegionLevel {
+  PROVINCE // 1: 省
+  CITY     // 2: 市
+  DISTRICT // 3: 区县
+}
+
+// ============ 数据表 ============
+
+// 系统用户表
+model SysUser {
+  id                BigInt    @id @default(autoincrement())
+  username          String    @db.VarChar(50)
+  account           String?   @db.VarChar(50) @unique
+  passwordHash      String?   @db.VarChar(255) @map("password_hash")
+  wxOpenid          String?   @db.VarChar(64) @unique @map("wx_openid")
+  wxUnionid         String?   @db.VarChar(64) @map("wx_unionid")
+  wxAvatar          String?   @db.VarChar(500) @map("wx_avatar")
+  realNameVerified Int       @default(0) @db.SmallInt @map("real_name_verified")
+  realNameAuthTime DateTime? @map("real_name_auth_time")
+  idCardNo          String?   @db.VarChar(255) @map("id_card_no")
+  roleType          RoleType  @map("role_type")
+  regionId          BigInt?   @map("region_id")
+  phone             String?   @db.VarChar(20)
+  status            Int       @default(1) @db.SmallInt
+  lastLoginTime     DateTime? @map("last_login_time")
+  isDeleted         Int       @default(0) @db.SmallInt @map("is_deleted")
+  creatorId         BigInt?   @map("creator_id")
+  createTime        DateTime  @default(now()) @map("create_time")
+  updateTime        DateTime  @updatedAt @map("update_time")
+
+  @@map("sys_user")
+}
+
+// 社区表
+model Community {
+  id            BigInt    @id @default(autoincrement())
+  communityName String    @db.VarChar(100) @map("community_name")
+  regionId      BigInt   @map("region_id")
+  remark        String?  @db.Text
+  status        Int       @default(1) @db.SmallInt
+  disableTime   DateTime? @map("disable_time")
+  isDeleted     Int       @default(0) @db.SmallInt @map("is_deleted")
+  creatorId     BigInt   @map("creator_id")
+  createTime    DateTime  @default(now()) @map("create_time")
+  updateTime    DateTime  @updatedAt @map("update_time")
+
+  @@index([communityName], map: "uk_community_name")
+  @@map("community")
+}
+
+// 分光器资源表
+model OpticalSplitter {
+  id              BigInt   @id @default(autoincrement())
+  splitterName    String   @db.VarChar(128) @map("splitter_name")
+  communityId     BigInt   @map("community_id")
+  splitterLevel   Int      @db.SmallInt @map("splitter_level")
+  parentId        BigInt?  @map("parent_id")
+  splitRatio      String?  @db.VarChar(10) @map("split_ratio")
+  installLocation String?  @db.VarChar(255) @map("install_location")
+  longitude       Decimal? @db.Decimal(10, 7)
+  latitude        Decimal? @db.Decimal(10, 7)
+  status          Int      @default(1) @db.SmallInt
+  faultType       Int?     @db.SmallInt @map("fault_type")
+  remark          String?  @db.Text
+  operatorId      BigInt   @map("operator_id")
+  isDeleted       Int      @default(0) @db.SmallInt @map("is_deleted")
+  creatorId       BigInt   @map("creator_id")
+  createTime      DateTime @default(now()) @map("create_time")
+  updateTime      DateTime @updatedAt @map("update_time")
+
+  @@index([splitterName], map: "uk_splitter_name")
+  @@index([communityId])
+  @@index([parentId])
+  @@map("optical_splitter")
+}
+
+// 用户-社区关联表
+model SysUserCommunity {
+  id          BigInt   @id @default(autoincrement())
+  userId      BigInt   @map("user_id")
+  communityId BigInt   @map("community_id")
+  creatorId   BigInt   @map("creator_id")
+  status      Int      @default(1) @db.SmallInt
+  isDeleted   Int      @default(0) @db.SmallInt @map("is_deleted")
+  createTime  DateTime @default(now()) @map("create_time")
+  updateTime  DateTime @updatedAt @map("update_time")
+
+  @@index([userId, communityId])
+  @@map("sys_user_community")
+}
+
+// 行政区划表
+model SysRegion {
+  id          BigInt      @id @default(autoincrement())
+  regionName  String      @db.VarChar(50) @map("region_name")
+  parentId    BigInt?     @map("parent_id")
+  regionLevel RegionLevel @map("region_level")
+  regionCode  String?     @db.VarChar(12) @unique @map("region_code")
+
+  @@index([parentId])
+  @@map("sys_region")
+}
+
+// 操作日志表
+model SysOperationLog {
+  id                BigInt   @id @default(autoincrement())
+  userId            BigInt   @map("user_id")
+  operationType     String   @db.VarChar(32) @map("operation_type")
+  targetType        String   @db.VarChar(32) @map("target_type")
+  targetId          BigInt?  @map("target_id")
+  operationContent  String?  @db.Text @map("operation_content")
+  ip                String?  @db.VarChar(50)
+  userAgent         String?  @db.VarChar(500) @map("user_agent")
+  createTime        DateTime @default(now()) @map("create_time")
+
+  @@index([userId])
+  @@index([createTime])
+  @@map("sys_operation_log")
+}
