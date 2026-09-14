@@ -28,7 +28,7 @@ check() {
 }
 
 # 1. 前端首页能访问（前端未部署时跳过）
-code=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND/" || echo "000")
+code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "$FRONTEND/" 2>/dev/null || echo "000")
 if [ "$code" = "000" ]; then
   echo "SKIP: Frontend Home (not deployed)"
 else
@@ -36,7 +36,7 @@ else
 fi
 
 # 2. 后端健康检查通过
-code=$(curl -s -o /dev/null -w "%{http_code}" "$BACKEND/api/health" || echo "000")
+code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 "$BACKEND/api/health" 2>/dev/null || echo "000")
 if [ "$code" = "000" ]; then
   echo "SKIP: Backend Health (not deployed)"
 else

@@ -36,7 +36,7 @@ jobs:
           command_timeout: 10m
           script: |
             cd /opt/splitter-test
-            ./scripts/deploy-test.sh ${{ github.sha }}
+            ./scripts/deploy-test.sh ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: 冒烟测试
         run: |
