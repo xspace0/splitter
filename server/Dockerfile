@@ -22,7 +22,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # tini 解决 PID 1 进程信号问题（Node.js 直接跑在 PID 1 会无法收到 SIGTERM）
-RUN apk add --no-cache tini curl
+RUN apk add --no-cache tini curl openssl
 
 ENV NODE_ENV=production
 
