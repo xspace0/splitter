@@ -18,7 +18,7 @@ FAIL=0
 check() {
   local url=$1 name=$2 expected=$3
   local code
-  code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+  code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 --max-time 10 "$url" 2>/dev/null || echo "000")
   if [ "$code" != "$expected" ]; then
     echo "FAIL: $name - $url -> $code (expected $expected)"
     FAIL=$((FAIL + 1))
