@@ -50,7 +50,9 @@ jobs:
           command_timeout: 10m
           script: |
             cd /opt/splitter
-            ./scripts/deploy-prod.sh ${{ github.sha }}
+            sed -i 's/\r$//' scripts/deploy-prod.sh
+            chmod +x scripts/deploy-prod.sh
+            bash scripts/deploy-prod.sh ${{ github.sha }}
 
       - name: 生产环境冒烟测试
         run: |
