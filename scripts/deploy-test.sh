@@ -39,16 +39,18 @@ sed -i "s|^FRONTEND_SHA=.*|FRONTEND_SHA=${SHA}|" "$ENV_FILE"
 # 检查哪些镜像存在，只部署可用的服务
 SERVICES=""
 if docker manifest inspect "ghcr.io/xspace0/splitter-backend:${SHA}" >/dev/null 2>&1; then
-  echo "Backend image found, including backend"
-  SERVICES="$SERVICES backend"
+  echo "Backend image found, including backend-test"
+  SERVICES="$SERVICES backend-test"
+  BACKEND_DEPLOYED=1
 else
-  echo "WARNING: Backend image not found, skipping backend"
+  echo "WARNING: Backend image not found, skipping backend-test"
+  BACKEND_DEPLOYED=0
 fi
 if docker manifest inspect "ghcr.io/xspace0/splitter-frontend:${SHA}" >/dev/null 2>&1; then
-  echo "Frontend image found, including frontend"
-  SERVICES="$SERVICES frontend"
+  echo "Frontend image found, including frontend-test"
+  SERVICES="$SERVICES frontend-test"
 else
-  echo "WARNING: Frontend image not found, skipping frontend"
+  echo "WARNING: Frontend image not found, skipping frontend-test"
 fi
 
 # 拉取新镜像
@@ -60,7 +62,7 @@ echo "Starting containers..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres redis $SERVICES
 
 # 健康检查（最多等 60 秒）— 仅当后端部署时检查
-if echo "$SERVICES" | grep -q backend; then
+if [ "$BACKEND_DEPLOYED" = "1" ]; then
   echo "Health check..."
   HEALTHY=0
   for i in 1 2 3 4 5 6; do
