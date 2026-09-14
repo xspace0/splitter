@@ -55,6 +55,10 @@ jobs:
           docker save "ghcr.io/xspace0/splitter-backend:${SHA}" | gzip | \
             ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
 
+      - name: 同步部署脚本到服务器
+        run: |
+          scp -r scripts/ ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }}:/opt/splitter-test/
+
       - name: 通过 SSH 部署到测试环境
         uses: appleboy/ssh-action@v1.0.3
         with:
