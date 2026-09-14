@@ -36,26 +36,26 @@ echo "Current version: $CURRENT_SHA"
 sed -i "s|^BACKEND_SHA=.*|BACKEND_SHA=${SHA}|" "$ENV_FILE"
 sed -i "s|^FRONTEND_SHA=.*|FRONTEND_SHA=${SHA}|" "$ENV_FILE"
 
-# 检查哪些镜像存在，只部署可用的服务
+# 检查哪些镜像已在本地加载（镜像由 GitHub Actions runner 传输，非服务器直接拉取）
 SERVICES=""
-if docker manifest inspect "ghcr.io/xspace0/splitter-backend:${SHA}" >/dev/null 2>&1; then
-  echo "Backend image found, including backend-test"
+if docker images -q "ghcr.io/xspace0/splitter-backend:${SHA}" | grep -q .; then
+  echo "Backend image found locally, including backend-test"
   SERVICES="$SERVICES backend-test"
   BACKEND_DEPLOYED=1
 else
-  echo "WARNING: Backend image not found, skipping backend-test"
+  echo "WARNING: Backend image not found locally, skipping backend-test"
   BACKEND_DEPLOYED=0
 fi
-if docker manifest inspect "ghcr.io/xspace0/splitter-frontend:${SHA}" >/dev/null 2>&1; then
-  echo "Frontend image found, including frontend-test"
+if docker images -q "ghcr.io/xspace0/splitter-frontend:${SHA}" | grep -q .; then
+  echo "Frontend image found locally, including frontend-test"
   SERVICES="$SERVICES frontend-test"
 else
-  echo "WARNING: Frontend image not found, skipping frontend-test"
+  echo "WARNING: Frontend image not found locally, skipping frontend-test"
 fi
 
-# 拉取新镜像
-echo "Pulling images..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull postgres redis $SERVICES
+# 仅拉取基础服务镜像（postgres/redis 从 Docker Hub 镜像源拉取）
+echo "Pulling base images (postgres, redis)..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull postgres redis
 
 # 重启容器
 echo "Starting containers..."

@@ -30,15 +30,32 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: 服务器登录 ghcr.io
-        uses: appleboy/ssh-action@v1.0.3
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true
-          script: |
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 拉取后端镜像
+        run: |
+          SHA="${{ github.sha }}"
+          echo "Pulling backend image: $SHA"
+          docker pull "ghcr.io/xspace0/splitter-backend:${SHA}"
+
+      - name: 配置 SSH 密钥
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: 传输镜像到服务器
+        run: |
+          SHA="${{ github.sha }}"
+          echo "Transferring backend image to server..."
+          docker save "ghcr.io/xspace0/splitter-backend:${SHA}" | gzip | \
+            ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
 
       - name: 通过 SSH 部署到生产环境
         uses: appleboy/ssh-action@v1.0.3

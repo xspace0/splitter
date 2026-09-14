@@ -36,9 +36,17 @@ echo "Current version: $CURRENT_SHA"
 sed -i "s|^BACKEND_SHA=.*|BACKEND_SHA=${SHA}|" "$ENV_FILE"
 sed -i "s|^FRONTEND_SHA=.*|FRONTEND_SHA=${SHA}|" "$ENV_FILE"
 
-# 拉取新镜像
-echo "Pulling images..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull
+# 检查后端镜像是否已本地加载（由 GitHub Actions runner 传输）
+if docker images -q "ghcr.io/xspace0/splitter-backend:${SHA}" | grep -q .; then
+  echo "Backend image found locally"
+else
+  echo "ERROR: Backend image not found locally, aborting"
+  exit 1
+fi
+
+# 仅拉取基础服务镜像（postgres/redis）
+echo "Pulling base images (postgres, redis)..."
+docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull postgres redis
 
 # 重启容器
 echo "Starting containers..."
@@ -49,7 +57,7 @@ echo "Health check..."
 HEALTHY=0
 for i in 1 2 3 4 5 6; do
   sleep 10
-  if curl -fs "http://localhost:${BACKEND_PORT}/health" >/dev/null 2>&1; then
+  if curl -fs "http://localhost:${BACKEND_PORT}/api/health" >/dev/null 2>&1; then
     HEALTHY=1
     echo "Health check passed!"
     break
