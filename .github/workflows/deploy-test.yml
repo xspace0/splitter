@@ -16,7 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
       packages: read
     # 只有 CI 成功才自动部署
@@ -53,12 +53,12 @@ jobs:
       - name: 传输镜像到服务器
         run: |
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          echo "Transferring backend image to server..."
-          docker save "ghcr.io/xspace0/splitter-backend:${SHA}" | gzip | \
-            ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
           echo "Transferring frontend image to server..."
           docker save "ghcr.io/xspace0/splitter-frontend:${SHA}" | gzip | \
-            ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
+            ssh -o ServerAliveInterval=30 ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
+          echo "Transferring backend image to server..."
+          docker save "ghcr.io/xspace0/splitter-backend:${SHA}" | gzip | \
+            ssh -o ServerAliveInterval=30 ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
 
       - name: 同步部署脚本到服务器
         run: |
