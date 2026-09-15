@@ -27,9 +27,10 @@ enum CommunityStatus {
 }
 
 enum SplitterStatus {
-  NORMAL  // 1: 正常
-  FAULT   // 2: 故障
-  STOPPED // 3: 停用
+  NORMAL           // 1: 正常
+  FAULT            // 2: 故障
+  STOPPED          // 3: 停用
+  UNDER_CONSTRUCTION // 4: 建设中
 }
 
 enum SplitterLevel {
