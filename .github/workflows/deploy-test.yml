@@ -35,11 +35,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 拉取后端镜像
+      - name: 拉取镜像
         run: |
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           echo "Pulling backend image: $SHA"
-          docker pull "ghcr.io/xspace0/splitter-backend:${SHA}"
+          docker pull "ghcr.io/xspace0/splitter-backend:${SHA}" || echo "Backend image not found"
+          echo "Pulling frontend image: $SHA"
+          docker pull "ghcr.io/xspace0/splitter-frontend:${SHA}" || echo "Frontend image not found"
 
       - name: 配置 SSH 密钥
         run: |
@@ -53,6 +55,9 @@ jobs:
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           echo "Transferring backend image to server..."
           docker save "ghcr.io/xspace0/splitter-backend:${SHA}" | gzip | \
+            ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
+          echo "Transferring frontend image to server..."
+          docker save "ghcr.io/xspace0/splitter-frontend:${SHA}" | gzip | \
             ssh ${{ secrets.SERVER_USERNAME }}@${{ secrets.SERVER_HOST }} "gzip -d | docker load"
 
       - name: 同步部署脚本到服务器
