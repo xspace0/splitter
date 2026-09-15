@@ -55,6 +55,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD}
     ports:
       - "${BACKEND_PORT}:3000"
     depends_on:

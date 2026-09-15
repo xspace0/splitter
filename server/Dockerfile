@@ -23,6 +23,7 @@ WORKDIR /app
 
 # tini 解决 PID 1 进程信号问题（Node.js 直接跑在 PID 1 会无法收到 SIGTERM）
 RUN apk add --no-cache tini curl openssl
+RUN npm install -g prisma
 
 ENV NODE_ENV=production
 
@@ -40,4 +41,4 @@ EXPOSE 3000
 ENTRYPOINT ["/sbin/tini", "--"]
 
 # 启动时先执行数据库迁移，再启动应用
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/main.js"]
