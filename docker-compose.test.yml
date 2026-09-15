@@ -82,10 +82,13 @@ services:
       API_BASE_URL: ${API_BASE_URL}
     ports:
       - "${FRONTEND_PORT}:80"
+    depends_on:
+      backend-test:
+        condition: service_healthy
     networks:
       - splitter_test
-    mem_limit: 32m
-    memswap_limit: 32m
+    mem_limit: 64m
+    memswap_limit: 64m
 
 networks:
   splitter_test:
