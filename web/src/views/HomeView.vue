@@ -2,6 +2,7 @@
   <div class="home-container">
     <div class="header">
       <h1>分光器资源管理系统</h1>
+      <button class="btn-nav" @click="router.push('/splitters')">分光器管理</button>
       <button class="btn-nav" @click="router.push('/communities')">社区管理</button>
       <button class="btn-nav" @click="router.push('/users')">用户管理</button>
       <button class="btn-logout" @click="handleLogout">退出登录</button>

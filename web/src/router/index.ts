@@ -24,6 +24,11 @@ const router = createRouter({
       name: 'communities',
       component: () => import('@/views/CommunitiesView.vue'),
     },
+    {
+      path: '/splitters',
+      name: 'splitters',
+      component: () => import('@/views/SplittersView.vue'),
+    },
   ],
 });
 
