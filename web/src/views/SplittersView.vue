@@ -1,7 +1,7 @@
 <template>
   <div class="splitter-container">
-    <div class="header">
-      <h1>分光器管理</h1>
+    <div class="page-header">
+      <h2>分光器管理</h2>
       <button class="btn-primary" @click="handleCreateRoot">+ 新增光交</button>
     </div>
 
@@ -445,19 +445,17 @@ onMounted(() => {
 <style scoped>
 .splitter-container {
   min-height: 100vh;
-  background: #f5f6fa;
+  background: #f0f2f5;
+  padding: 20px 24px;
   padding-bottom: 40px;
 }
-.header {
+.page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  margin-bottom: 16px;
 }
-.header h1 {
+.page-header h2 {
   font-size: 18px;
   color: #333;
   margin: 0;

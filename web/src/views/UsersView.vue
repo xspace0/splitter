@@ -1,7 +1,7 @@
 <template>
   <div class="users-container">
-    <div class="header">
-      <h1>用户管理</h1>
+    <div class="page-header">
+      <h2>用户管理</h2>
       <button class="btn-primary" @click="showCreate = true">+ 新增用户</button>
     </div>
     <div class="toolbar">
@@ -174,9 +174,9 @@ onMounted(() => { loadUsers(); });
 </script>
 
 <style scoped>
-.users-container { min-height: 100vh; background: #f5f6fa; padding: 16px 24px; }
-.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-.header h1 { font-size: 20px; color: #333; margin: 0; }
+.users-container { min-height: 100vh; background: #f0f2f5; padding: 20px 24px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.page-header h2 { font-size: 18px; color: #333; margin: 0; }
 .btn-primary { padding: 8px 20px; background: #667eea; color: #fff; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
 .btn-primary:hover:not(:disabled) { background: #5a6fc7; }
 .btn-primary:disabled { opacity: .6; }

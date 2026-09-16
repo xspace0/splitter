@@ -11,23 +11,34 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'home',
-      component: () => import('@/views/HomeView.vue'),
-    },
-    {
-      path: '/users',
-      name: 'users',
-      component: () => import('@/views/UsersView.vue'),
-    },
-    {
-      path: '/communities',
-      name: 'communities',
-      component: () => import('@/views/CommunitiesView.vue'),
-    },
-    {
-      path: '/splitters',
-      name: 'splitters',
-      component: () => import('@/views/SplittersView.vue'),
+      component: () => import('@/layouts/MainLayout.vue'),
+      children: [
+        {
+          path: '',
+          name: 'home',
+          component: () => import('@/views/HomeView.vue'),
+        },
+        {
+          path: 'splitters',
+          name: 'splitters',
+          component: () => import('@/views/SplittersView.vue'),
+        },
+        {
+          path: 'communities',
+          name: 'communities',
+          component: () => import('@/views/CommunitiesView.vue'),
+        },
+        {
+          path: 'users',
+          name: 'users',
+          component: () => import('@/views/UsersView.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('@/views/HomeView.vue'),
+        },
+      ],
     },
   ],
 });
