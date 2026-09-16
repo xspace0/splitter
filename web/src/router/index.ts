@@ -19,6 +19,11 @@ const router = createRouter({
       name: 'users',
       component: () => import('@/views/UsersView.vue'),
     },
+    {
+      path: '/communities',
+      name: 'communities',
+      component: () => import('@/views/CommunitiesView.vue'),
+    },
   ],
 });
 
