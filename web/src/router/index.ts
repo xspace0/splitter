@@ -24,6 +24,11 @@ const router = createRouter({
           component: () => import('@/views/SplittersView.vue'),
         },
         {
+          path: 'map',
+          name: 'map',
+          component: () => import('@/views/MapView.vue'),
+        },
+        {
           path: 'communities',
           name: 'communities',
           component: () => import('@/views/CommunitiesView.vue'),
@@ -32,6 +37,16 @@ const router = createRouter({
           path: 'users',
           name: 'users',
           component: () => import('@/views/UsersView.vue'),
+        },
+        {
+          path: 'permissions',
+          name: 'permissions',
+          component: () => import('@/views/PermissionsView.vue'),
+        },
+        {
+          path: 'logs',
+          name: 'logs',
+          component: () => import('@/views/LogsView.vue'),
         },
         {
           path: 'profile',

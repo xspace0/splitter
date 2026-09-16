@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { CommunityModule } from './modules/community/community.module';
 import { SplitterModule } from './modules/splitter/splitter.module';
+import { PermissionModule } from './modules/permission/permission.module';
 import { InitModule } from './modules/init/init.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -24,6 +25,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     UserModule,
     CommunityModule,
     SplitterModule,
+    PermissionModule,
   ],
   providers: [
     {
