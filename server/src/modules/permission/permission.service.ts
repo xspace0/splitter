@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogService } from '../log/log.service';
 import { RoleType, getRoleLevel } from '@/common/enums/role.enum';
 import { AssignPermissionDto, RemovePermissionDto } from './dto/assign-permission.dto';
 import { QueryPermissionDto } from './dto/query-permission.dto';
@@ -18,7 +19,10 @@ const ASSIGN_STATUS_REMOVED = 0;
 export class PermissionService {
   private readonly logger = new Logger(PermissionService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private logService: LogService,
+  ) {}
 
   async assign(dto: AssignPermissionDto, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
@@ -111,6 +115,14 @@ export class PermissionService {
       `Permissions assigned: user ${targetUser.account} -> ${dto.communityIds.length} communities by ${currentUser.account}`,
     );
 
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'ASSIGN_PERMISSION',
+      targetType: '权限',
+      targetId: targetUserId,
+      operationContent: `分配社区权限给操作员 ${targetUser.username}(${targetUser.account})，共${dto.communityIds.length}个社区`,
+    });
+
     return {
       message: '权限分配成功',
       details: results,
@@ -146,6 +158,14 @@ export class PermissionService {
     this.logger.log(
       `Permissions removed: user ${targetUser.account} <- ${dto.communityIds.length} communities by ${currentUser.account} (${result.count} updated)`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'REMOVE_PERMISSION',
+      targetType: '权限',
+      targetId: targetUserId,
+      operationContent: `移除操作员 ${targetUser.username}(${targetUser.account}) 的${result.count}个社区权限`,
+    });
 
     return {
       message: '权限移除成功',

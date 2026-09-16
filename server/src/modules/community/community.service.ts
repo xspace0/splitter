@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogService } from '../log/log.service';
 import { RoleType } from '@/common/enums/role.enum';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { UpdateCommunityDto } from './dto/update-community.dto';
@@ -21,7 +22,10 @@ const DELETE_GRACE_DAYS = 30;
 export class CommunityService {
   private readonly logger = new Logger(CommunityService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private logService: LogService,
+  ) {}
 
   async create(dto: CreateCommunityDto, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
@@ -56,6 +60,14 @@ export class CommunityService {
     this.logger.log(
       `Community created: ${community.communityName} by ${currentUser.account}`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'CREATE',
+      targetType: '社区',
+      targetId: community.id,
+      operationContent: `新增社区 ${community.communityName}`,
+    });
 
     return this.formatCommunity(community);
   }
@@ -163,6 +175,14 @@ export class CommunityService {
       `Community ${updated.id} updated by ${currentUser.account}`,
     );
 
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'UPDATE',
+      targetType: '社区',
+      targetId: BigInt(id),
+      operationContent: `修改社区 ${community.communityName}`,
+    });
+
     return this.formatCommunity(updated);
   }
 
@@ -193,6 +213,14 @@ export class CommunityService {
     this.logger.log(
       `Community ${updated.communityName} ${action} by ${currentUser.account}`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: status === COMMUNITY_STATUS_DISABLED ? 'DISABLE' : 'ENABLE',
+      targetType: '社区',
+      targetId: BigInt(id),
+      operationContent: `${status === COMMUNITY_STATUS_DISABLED ? '停用' : '恢复启用'}社区 ${community.communityName}${status === COMMUNITY_STATUS_DISABLED ? '，记录disable_time' : '，清空停用时间'}`,
+    });
 
     return this.formatCommunity(updated);
   }
@@ -248,6 +276,14 @@ export class CommunityService {
     this.logger.log(
       `Community ${community.communityName} deleted (${splitterCount} splitters) by ${currentUser.account}`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'DELETE',
+      targetType: '社区',
+      targetId: BigInt(id),
+      operationContent: `删除社区 ${community.communityName}${splitterCount > 0 ? `，批量逻辑删除（${splitterCount}条分光器）` : ''}`,
+    });
 
     return { message: '删除成功', deletedSplitters: splitterCount };
   }

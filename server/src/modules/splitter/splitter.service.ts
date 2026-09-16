@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogService } from '../log/log.service';
 import { RoleType } from '@/common/enums/role.enum';
 import { CreateSplitterDto } from './dto/create-splitter.dto';
 import { UpdateSplitterDto } from './dto/update-splitter.dto';
@@ -29,7 +30,10 @@ const SPLITTER_LEVEL_CABLE_TERMINAL = 4;
 export class SplitterService {
   private readonly logger = new Logger(SplitterService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private logService: LogService,
+  ) {}
 
   async create(dto: CreateSplitterDto, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
@@ -101,6 +105,14 @@ export class SplitterService {
     this.logger.log(
       `Splitter created: ${splitter.splitterName} (level ${splitter.splitterLevel}) by ${currentUser.account}`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'CREATE',
+      targetType: '分光器',
+      targetId: splitter.id,
+      operationContent: `新增${this.levelName(splitter.splitterLevel)} ${splitter.splitterName}`,
+    });
 
     return this.formatSplitter(splitter);
   }
@@ -316,6 +328,14 @@ export class SplitterService {
       `Splitter ${updated.splitterName} updated by ${currentUser.account}`,
     );
 
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'UPDATE',
+      targetType: '分光器',
+      targetId: BigInt(id),
+      operationContent: `修改${this.levelName(updated.splitterLevel)} ${updated.splitterName}`,
+    });
+
     return this.formatSplitter(updated);
   }
 
@@ -355,6 +375,17 @@ export class SplitterService {
     this.logger.log(
       `Splitter ${updated.splitterName} status changed to ${statusMap[status] || 'unknown'} by ${currentUser.account}`,
     );
+
+    const opType = status === SPLITTER_STATUS_FAULT ? 'FAULT_REPORT'
+      : status === SPLITTER_STATUS_NORMAL && splitter.status === SPLITTER_STATUS_FAULT ? 'FAULT_RECOVER'
+      : status === SPLITTER_STATUS_STOPPED ? 'DISABLE' : 'UPDATE';
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: opType,
+      targetType: '分光器',
+      targetId: BigInt(id),
+      operationContent: `${this.levelName(updated.splitterLevel)} ${updated.splitterName} 状态变更为${this.statusName(status)}`,
+    });
 
     return this.formatSplitter(updated);
   }
@@ -401,6 +432,14 @@ export class SplitterService {
     this.logger.log(
       `Splitter ${splitter.splitterName} deleted by ${currentUser.account}`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'DELETE',
+      targetType: '分光器',
+      targetId: BigInt(id),
+      operationContent: `删除${this.levelName(splitter.splitterLevel)} ${splitter.splitterName}`,
+    });
 
     return { message: '删除成功' };
   }
@@ -479,6 +518,16 @@ export class SplitterService {
       select: { regionId: true },
     });
     return user?.regionId ?? BigInt(0);
+  }
+
+  private levelName(level: number): string {
+    const map: Record<number, string> = { 1: '光交', 2: '一级分光器', 3: '二级分光器', 4: '光缆成端' };
+    return map[level] || '分光器';
+  }
+
+  private statusName(status: number): string {
+    const map: Record<number, string> = { 1: '正常', 2: '故障', 3: '停用', 4: '建设中' };
+    return map[status] || '未知';
   }
 
   private formatSplitter(splitter: {

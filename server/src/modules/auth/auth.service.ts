@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogService } from '../log/log.service';
 import type { JwtPayload } from './strategies/jwt.strategy';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private logService: LogService,
   ) {}
 
   async login(account: string, password: string) {
@@ -43,6 +45,14 @@ export class AuthService {
     await this.prisma.sysUser.update({
       where: { id: user.id },
       data: { lastLoginTime: new Date() },
+    });
+
+    this.logService.log({
+      userId: user.id,
+      operationType: 'LOGIN',
+      targetType: '用户',
+      targetId: user.id,
+      operationContent: 'PC端账号密码登录',
     });
 
     const payload: JwtPayload = {

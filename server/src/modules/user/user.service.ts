@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { LogService } from '../log/log.service';
 import { RoleType, getRoleLevel } from '@/common/enums/role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -37,7 +38,10 @@ type UserWithRelations = {
 export class UserService {
   private readonly logger = new Logger(UserService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private logService: LogService,
+  ) {}
 
   async create(dto: CreateUserDto, currentUser: RequestUser) {
     const existing = await this.prisma.sysUser.findFirst({
@@ -83,6 +87,14 @@ export class UserService {
     });
 
     this.logger.log(`User created: ${user.account} (role=${user.roleType}) by ${currentUser.account}`);
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'CREATE',
+      targetType: '用户',
+      targetId: user.id,
+      operationContent: `新增用户 ${user.username}(${user.account})，角色：${user.roleType}`,
+    });
 
     return this.formatUser(user);
   }
@@ -171,6 +183,14 @@ export class UserService {
       data,
     });
 
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'UPDATE',
+      targetType: '用户',
+      targetId: BigInt(id),
+      operationContent: `修改用户信息 ${user.username}(${user.account})`,
+    });
+
     return this.formatUser(updated);
   }
 
@@ -191,6 +211,14 @@ export class UserService {
     });
 
     this.logger.log(`User ${user.account} status=${status} by ${currentUser.account}`);
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: status === 1 ? 'ENABLE' : 'DISABLE',
+      targetType: '用户',
+      targetId: BigInt(id),
+      operationContent: `${status === 1 ? '启用' : '禁用'}用户 ${user.username}(${user.account})`,
+    });
 
     return this.formatUser(updated);
   }
@@ -214,6 +242,14 @@ export class UserService {
     });
 
     this.logger.log(`Password reset for ${user.account} by ${currentUser.account}`);
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'UPDATE',
+      targetType: '用户',
+      targetId: BigInt(id),
+      operationContent: `重置用户 ${user.username}(${user.account}) 密码`,
+    });
 
     return { message: '密码已重置' };
   }
@@ -241,6 +277,14 @@ export class UserService {
     this.logger.log(
       `User ${user.account} role ${user.roleType} -> ${newRole} by ${currentUser.account}`,
     );
+
+    this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: 'ROLE_CHANGE',
+      targetType: '用户',
+      targetId: BigInt(id),
+      operationContent: `${user.username}(${user.account}) 角色变更：${user.roleType} → ${newRole}`,
+    });
 
     return this.formatUser(updated);
   }
