@@ -61,21 +61,15 @@
 		"list": [
 			{
 				"pagePath": "pages/map/map",
-				"text": "地图",
-				"iconPath": "static/tab-map.png",
-				"selectedIconPath": "static/tab-map-active.png"
+				"text": "地图"
 			},
 			{
 				"pagePath": "pages/splitter/splitter",
-				"text": "设备",
-				"iconPath": "static/tab-list.png",
-				"selectedIconPath": "static/tab-list-active.png"
+				"text": "设备"
 			},
 			{
 				"pagePath": "pages/profile/profile",
-				"text": "我的",
-				"iconPath": "static/tab-user.png",
-				"selectedIconPath": "static/tab-user-active.png"
+				"text": "我的"
 			}
 		]
 	},
