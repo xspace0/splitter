@@ -45,6 +45,22 @@
 				"navigationBarBackgroundColor": "#ffffff",
 				"navigationBarTextStyle": "black"
 			}
+		},
+		{
+			"path": "pages/my-communities/my-communities",
+			"style": {
+				"navigationBarTitleText": "我的分配社区",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/fault-records/fault-records",
+			"style": {
+				"navigationBarTitleText": "故障上报记录",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black"
+			}
 		}
 	],
 	"globalStyle": {
