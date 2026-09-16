@@ -2,6 +2,7 @@
   <div class="home-container">
     <div class="header">
       <h1>分光器资源管理系统</h1>
+      <button class="btn-nav" @click="router.push('/users')">用户管理</button>
       <button class="btn-logout" @click="handleLogout">退出登录</button>
     </div>
     <div class="content">
@@ -113,6 +114,18 @@ onMounted(() => {
   font-size: 18px;
   color: #333;
   margin: 0;
+}
+.btn-nav {
+  padding: 6px 16px;
+  background: #667eea;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-nav:hover {
+  background: #5a6fc7;
 }
 .btn-logout {
   padding: 6px 16px;
