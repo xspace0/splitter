@@ -49,6 +49,11 @@ const router = createRouter({
           component: () => import('@/views/LogsView.vue'),
         },
         {
+          path: 'regions',
+          name: 'regions',
+          component: () => import('@/views/RegionsView.vue'),
+        },
+        {
           path: 'profile',
           name: 'profile',
           component: () => import('@/views/ProfileView.vue'),

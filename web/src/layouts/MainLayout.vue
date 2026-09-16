@@ -29,6 +29,9 @@
         <RouterLink to="/logs" class="menu-item" active-class="active">
           <span class="menu-icon">📋</span> 操作日志
         </RouterLink>
+        <RouterLink to="/regions" class="menu-item" active-class="active">
+          <span class="menu-icon">🗺️</span> 行政区划
+        </RouterLink>
         <div class="menu-group">个人</div>
         <RouterLink to="/profile" class="menu-item" active-class="active">
           <span class="menu-icon">👤</span> 个人中心
