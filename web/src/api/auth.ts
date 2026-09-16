@@ -41,3 +41,11 @@ export function login(payload: LoginPayload) {
 export function getProfile() {
   return request.get('/auth/profile') as Promise<ProfileResult>;
 }
+
+export function changePassword(oldPassword: string, newPassword: string) {
+  return request.put('/auth/password', { oldPassword, newPassword }) as Promise<{ code: number; message: string }>;
+}
+
+export function updateProfile(data: { username?: string; phone?: string }) {
+  return request.put('/auth/profile', data) as Promise<{ code: number; message: string }>;
+}

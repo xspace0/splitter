@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -22,5 +22,23 @@ export class AuthController {
   @Get('profile')
   getProfile(@CurrentUser() user: RequestUser) {
     return this.authService.getProfile(user.id);
+  }
+
+  @ApiOperation({ summary: '修改密码' })
+  @Put('password')
+  changePassword(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: { oldPassword: string; newPassword: string },
+  ) {
+    return this.authService.changePassword(user.id, dto.oldPassword, dto.newPassword);
+  }
+
+  @ApiOperation({ summary: '更新个人信息' })
+  @Put('profile')
+  updateProfile(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: { username?: string; phone?: string },
+  ) {
+    return this.authService.updateProfile(user.id, dto);
   }
 }

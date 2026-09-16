@@ -1,6 +1,7 @@
 import {
   Injectable,
   UnauthorizedException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -82,5 +83,58 @@ export class AuthService {
       phone: user.phone,
       lastLoginTime: user.lastLoginTime,
     };
+  }
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.prisma.sysUser.findFirst({
+      where: { id: BigInt(userId), isDeleted: 0 },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    if (!user.passwordHash) {
+      throw new BadRequestException('该账号未设置密码，请联系管理员');
+    }
+
+    const isOldValid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isOldValid) {
+      throw new BadRequestException('原密码错误');
+    }
+
+    if (newPassword.length < 6) {
+      throw new BadRequestException('新密码至少6位');
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.sysUser.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash },
+    });
+
+    this.logger.log(`User ${user.account} changed password`);
+    return { message: '密码修改成功' };
+  }
+
+  async updateProfile(userId: string, data: { username?: string; phone?: string }) {
+    const user = await this.prisma.sysUser.findFirst({
+      where: { id: BigInt(userId), isDeleted: 0 },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    const updateData: { username?: string; phone?: string } = {};
+    if (data.username !== undefined) updateData.username = data.username;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+
+    await this.prisma.sysUser.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    return { message: '信息更新成功' };
   }
 }
