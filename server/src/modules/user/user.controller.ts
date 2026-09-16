@@ -6,7 +6,6 @@ import {
   Body,
   Param,
   Query,
-  UseGuards,
   ParseIntPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';

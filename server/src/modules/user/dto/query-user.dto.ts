@@ -1,5 +1,4 @@
-import { IsOptional, IsInt, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsOptional, IsString } from 'class-validator';
 import { PaginationDto } from '@/common/dto/pagination.dto';
 
 export class QueryUserDto extends PaginationDto {
@@ -8,17 +7,14 @@ export class QueryUserDto extends PaginationDto {
   keyword?: string;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  roleType?: number;
+  @IsString()
+  roleType?: string;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  status?: number;
+  @IsString()
+  status?: string;
 
   @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  regionId?: number;
+  @IsString()
+  regionId?: string;
 }

@@ -14,6 +14,25 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { QueryUserDto } from './dto/query-user.dto';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
 
+type UserWithRelations = {
+  id: bigint;
+  username: string;
+  account: string | null;
+  passwordHash: string | null;
+  roleType: string;
+  regionId: bigint | null;
+  phone: string | null;
+  idCardNo: string | null;
+  realNameVerified: number;
+  realNameAuthTime: Date | null;
+  status: number;
+  lastLoginTime: Date | null;
+  isDeleted: number;
+  creatorId: bigint | null;
+  createTime: Date;
+  updateTime: Date;
+};
+
 @Injectable()
 export class UserService {
   private readonly logger = new Logger(UserService.name);
@@ -31,7 +50,6 @@ export class UserService {
     this.validateRolePermission(
       currentUser.roleType,
       dto.roleType,
-      'create',
     );
 
     if (getRoleLevel(dto.roleType) <= getRoleLevel(RoleType.OPERATOR)) {
@@ -70,7 +88,7 @@ export class UserService {
   }
 
   async findAll(query: QueryUserDto, currentUser: RequestUser) {
-    const where: any = { isDeleted: 0 };
+    const where: Record<string, unknown> = { isDeleted: 0 };
 
     if (query.keyword) {
       where.OR = [
@@ -85,7 +103,7 @@ export class UserService {
     }
 
     if (query.status !== undefined) {
-      where.status = query.status;
+      where.status = Number(query.status);
     }
 
     if (currentUser.roleType !== RoleType.SUPER_ADMIN) {
@@ -127,7 +145,7 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    this.validateDataAccess(currentUser.roleType, user.roleType, user.regionId);
+    this.validateDataAccess(currentUser.roleType, user.roleType);
 
     return this.formatUser(user);
   }
@@ -141,9 +159,9 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    this.validateDataAccess(currentUser.roleType, user.roleType, user.regionId);
+    this.validateDataAccess(currentUser.roleType, user.roleType);
 
-    const data: any = {};
+    const data: { username?: string; phone?: string | null; idCardNo?: string | null } = {};
     if (dto.username !== undefined) data.username = dto.username;
     if (dto.phone !== undefined) data.phone = dto.phone;
     if (dto.idCardNo !== undefined) data.idCardNo = dto.idCardNo;
@@ -165,7 +183,7 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    this.validateRolePermission(currentUser.roleType, user.roleType, 'status');
+    this.validateRolePermission(currentUser.roleType, user.roleType);
 
     const updated = await this.prisma.sysUser.update({
       where: { id: BigInt(id) },
@@ -186,7 +204,7 @@ export class UserService {
       throw new NotFoundException('用户不存在');
     }
 
-    this.validateRolePermission(currentUser.roleType, user.roleType, 'password');
+    this.validateRolePermission(currentUser.roleType, user.roleType);
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
@@ -230,7 +248,6 @@ export class UserService {
   private validateRolePermission(
     operatorRole: string,
     targetRole: string,
-    action: string,
   ) {
     if (operatorRole === RoleType.SUPER_ADMIN) return;
 
@@ -252,8 +269,8 @@ export class UserService {
     oldRole: string,
     newRole: string,
   ) {
-    this.validateRolePermission(operatorRole, oldRole, 'role');
-    this.validateRolePermission(operatorRole, newRole, 'role');
+    this.validateRolePermission(operatorRole, oldRole);
+    this.validateRolePermission(operatorRole, newRole);
 
     if (operatorRole === RoleType.REGION_ADMIN) {
       const allowed = [RoleType.VIEWER, RoleType.ADMIN];
@@ -271,14 +288,13 @@ export class UserService {
   private validateDataAccess(
     operatorRole: string,
     targetRole: string,
-    targetRegionId: BigInt | null,
   ) {
     if (operatorRole === RoleType.SUPER_ADMIN) return;
 
-    this.validateRolePermission(operatorRole, targetRole, 'view');
+    this.validateRolePermission(operatorRole, targetRole);
   }
 
-  private async getUserRegionId(userId: string): Promise<BigInt | null> {
+  private async getUserRegionId(userId: string): Promise<bigint | null> {
     const user = await this.prisma.sysUser.findUnique({
       where: { id: BigInt(userId) },
       select: { regionId: true },
@@ -286,7 +302,7 @@ export class UserService {
     return user?.regionId ?? null;
   }
 
-  private formatUser(user: any) {
+  private formatUser(user: UserWithRelations) {
     return {
       id: user.id.toString(),
       username: user.username,
