@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="login-container">
     <div class="login-card">
       <h1 class="title">分光器资源管理系统</h1>
@@ -57,7 +57,7 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1890ff 0%, #0050b3 100%);
 }
 .login-card {
   width: 380px;
@@ -91,7 +91,7 @@ async function handleLogin() {
   transition: border-color 0.2s;
 }
 .form-group input:focus {
-  border-color: #667eea;
+  border-color: #1890ff;
   outline: none;
 }
 .error-msg {
@@ -102,7 +102,7 @@ async function handleLogin() {
 .btn-login {
   width: 100%;
   padding: 12px;
-  background: #667eea;
+  background: #1890ff;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -111,10 +111,11 @@ async function handleLogin() {
   transition: background 0.2s;
 }
 .btn-login:hover:not(:disabled) {
-  background: #5a6fc7;
+  background: #096dd9;
 }
 .btn-login:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 </style>
+
