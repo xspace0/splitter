@@ -1,4 +1,4 @@
-import request from './request';
+import request from '../utils/request';
 
 // 分页查询分光器
 export function getSplitters(params) {

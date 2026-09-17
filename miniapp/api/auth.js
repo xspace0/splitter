@@ -1,4 +1,4 @@
-import request from './request';
+import request from '../utils/request';
 
 // 小程序登录（微信一键登录）
 export function miniLogin(code) {

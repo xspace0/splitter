@@ -1,4 +1,4 @@
-import request from './request';
+import request from '../utils/request';
 
 // 获取社区列表（只返回已分配的，用于小程序）
 export function getMyCommunities() {

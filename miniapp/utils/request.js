@@ -1,12 +1,30 @@
-const BASE_URL = 'http://101.34.70.210:3000/api';
+const BASE_URL = 'http://1.92.79.114:3001/api';
+
+function buildQuery(params) {
+  if (!params) return '';
+  const pairs = [];
+  for (const key in params) {
+    if (params[key] !== '' && params[key] !== undefined && params[key] !== null) {
+      pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(params[key])}`);
+    }
+  }
+  return pairs.length ? '?' + pairs.join('&') : '';
+}
 
 function request(options) {
   return new Promise((resolve, reject) => {
     const token = uni.getStorageSync('token') || '';
+    let url = BASE_URL + options.url;
+    let data = options.data;
+
+    if (options.method === 'GET' && options.params) {
+      url += buildQuery(options.params);
+    }
+
     uni.request({
-      url: BASE_URL + options.url,
+      url,
       method: options.method || 'GET',
-      data: options.data || options.params || {},
+      data: data || {},
       header: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: 'Bearer ' + token } : {}),
@@ -19,10 +37,15 @@ function request(options) {
           reject(res);
           return;
         }
-        if (res.data && res.data.code === 0) {
-          resolve(res.data);
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          if (res.data && res.data.code === 0) {
+            resolve(res.data);
+          } else {
+            uni.showToast({ title: res.data?.message || '请求失败', icon: 'none' });
+            reject(res.data);
+          }
         } else {
-          uni.showToast({ title: res.data?.message || '请求失败', icon: 'none' });
+          uni.showToast({ title: res.data?.message || `请求错误(${res.statusCode})`, icon: 'none' });
           reject(res.data);
         }
       },
