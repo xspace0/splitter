@@ -127,6 +127,8 @@ model OpticalSplitter {
 }
 
 // 用户-社区关联表
+// 注意：文档要求部分唯一索引 uk_community_active (community_id) WHERE status=1 AND is_deleted=0，
+// Prisma schema 无法表达带 WHERE 的部分索引，由 prisma/sql/partial-unique-indexes.sql 维护。
 model SysUserCommunity {
   id          BigInt   @id @default(autoincrement())
   userId      BigInt   @map("user_id")
@@ -138,6 +140,7 @@ model SysUserCommunity {
   updateTime  DateTime @updatedAt @map("update_time")
 
   @@index([userId, communityId])
+  @@index([communityId])
   @@map("sys_user_community")
 }
 

@@ -68,42 +68,51 @@ const filterTargetType = ref('');
 const filterStartDate = ref('');
 const filterEndDate = ref('');
 
+// 与服务端写入的 operation_type 中文枚举严格一致
+// （见 docs/分光器资源管理系统_数据库设计.md 3.6 / 权限模块需求.md 6）
 const operationTypes = [
-  { value: 'LOGIN', label: '登录' },
-  { value: 'LOGOUT', label: '登出' },
-  { value: 'CREATE', label: '新增' },
-  { value: 'UPDATE', label: '修改' },
-  { value: 'DELETE', label: '删除' },
-  { value: 'ASSIGN_PERMISSION', label: '权限分配' },
-  { value: 'REMOVE_PERMISSION', label: '权限移除' },
-  { value: 'ROLE_CHANGE', label: '角色变更' },
-  { value: 'FAULT_REPORT', label: '故障上报' },
-  { value: 'FAULT_RECOVER', label: '故障恢复' },
-  { value: 'DISABLE', label: '停用' },
-  { value: 'ENABLE', label: '恢复启用' },
+  { value: '登录', label: '登录' },
+  { value: '登出', label: '登出' },
+  { value: '新增', label: '新增' },
+  { value: '修改', label: '修改' },
+  { value: '删除', label: '删除' },
+  { value: '启用', label: '启用' },
+  { value: '禁用', label: '禁用' },
+  { value: '权限分配', label: '权限分配' },
+  { value: '角色变更', label: '角色变更' },
+  { value: '故障上报', label: '故障上报' },
+  { value: '故障恢复', label: '故障恢复' },
 ];
 
 const targetTypes = ['用户', '社区', '分光器', '权限'];
 
-const opLabelMap: Record<string, string> = {
-  LOGIN: '登录', LOGOUT: '登出', CREATE: '新增', UPDATE: '修改', DELETE: '删除',
-  ASSIGN_PERMISSION: '权限分配', REMOVE_PERMISSION: '权限移除', ROLE_CHANGE: '角色变更',
-  FAULT_REPORT: '故障上报', FAULT_RECOVER: '故障恢复', DISABLE: '停用', ENABLE: '恢复启用',
+const opTagClassMap: Record<string, string> = {
+  登录: 'tag-blue',
+  登出: 'tag-gray',
+  新增: 'tag-green',
+  修改: 'tag-blue',
+  删除: 'tag-red',
+  启用: 'tag-green',
+  禁用: 'tag-orange',
+  权限分配: 'tag-purple',
+  角色变更: 'tag-blue',
+  故障上报: 'tag-red',
+  故障恢复: 'tag-green',
 };
 
 function opLabel(type: string) {
-  return opLabelMap[type] || type;
+  // 历史数据可能存有英文枚举，保留兼容映射
+  const legacy: Record<string, string> = {
+    LOGIN: '登录', LOGOUT: '登出', CREATE: '新增', UPDATE: '修改', DELETE: '删除',
+    ASSIGN_PERMISSION: '权限分配', REMOVE_PERMISSION: '权限移除', ROLE_CHANGE: '角色变更',
+    FAULT_REPORT: '故障上报', FAULT_RECOVER: '故障恢复', DISABLE: '禁用', ENABLE: '启用',
+  };
+  return legacy[type] || type;
 }
 
 function opTagClass(type: string) {
-  const map: Record<string, string> = {
-    LOGIN: 'tag-blue', LOGOUT: 'tag-gray',
-    CREATE: 'tag-green', UPDATE: 'tag-blue', DELETE: 'tag-red',
-    ASSIGN_PERMISSION: 'tag-purple', REMOVE_PERMISSION: 'tag-orange',
-    ROLE_CHANGE: 'tag-blue', FAULT_REPORT: 'tag-red', FAULT_RECOVER: 'tag-green',
-    DISABLE: 'tag-orange', ENABLE: 'tag-green',
-  };
-  return map[type] || 'tag-gray';
+  const normalized = opLabel(type);
+  return opTagClassMap[normalized] || 'tag-gray';
 }
 
 function formatTime(t: string) {

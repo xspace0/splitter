@@ -91,7 +91,7 @@ export default {
       }
       this.submitting = true;
       try {
-        await this.$api.auth.submitRealName({
+        const res = await this.$api.auth.submitRealName({
           realName: this.form.realName,
           idCard: this.form.idCard,
           province: this.form.province,
@@ -99,13 +99,21 @@ export default {
           district: this.form.district,
         });
         uni.showToast({ title: '认证成功', icon: 'success' });
+        // 保存新token（包含更新后的认证状态和regionId）
+        if (res.data.token) {
+          uni.setStorageSync('token', res.data.token);
+        }
         // 更新本地profile
         const profile = uni.getStorageSync('profile') || {};
-        profile.realNameVerified = true;
+        profile.realNameVerified = 1;
         profile.username = this.form.realName;
+        if (res.data.user?.regionId) {
+          profile.regionId = res.data.user.regionId;
+        }
         uni.setStorageSync('profile', profile);
         setTimeout(() => {
-          uni.navigateBack();
+          // 认证成功后跳转到地图页
+          uni.switchTab({ url: '/pages/map/map' });
         }, 1000);
       } catch (e) {
         // 失败已弹过toast

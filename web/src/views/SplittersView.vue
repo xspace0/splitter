@@ -44,9 +44,7 @@
         <button class="btn btn-primary btn-sm" @click="handleCreate">+ 新增分光器</button>
         <button class="btn btn-sm" @click="toggleView">{{ viewMode === 'table' ? '🌳 拓扑树查看' : '📋 表格查看' }}</button>
       </div>
-      <div class="right">
-        <button class="btn btn-sm">📤 导出</button>
-      </div>
+      <div class="right"></div>
     </div>
 
     <!-- 表格视图 -->
@@ -63,7 +61,7 @@
             <td>{{ item.splitterName }}</td>
             <td>{{ getCommunityName(item.communityId) }}</td>
             <td><span class="tag" :class="levelTagClass(item.splitterLevel)">{{ levelMap[item.splitterLevel] }}</span></td>
-            <td>{{ item.parentId ? getParentName(item.parentId) : '-' }}</td>
+            <td>{{ getParentName(item) }}</td>
             <td>{{ item.splitRatio || '-' }}</td>
             <td><span class="tag" :class="statusTagClass(item.status)">{{ statusMap[item.status].label }}</span></td>
             <td>{{ item.faultType ? faultTypeMap[item.faultType] || '-' : '-' }}</td>
@@ -237,9 +235,19 @@ function getCommunityName(id: string) {
   return communities.value.find((c) => c.id === id)?.communityName || '-';
 }
 
-function getParentName(parentId: string) {
-  const p = tableData.value.find((s) => s.id === parentId);
-  return p?.splitterName || '-';
+function getParentName(item: SplitterItem | SplitterTreeItem) {
+  if (!item.parentId) return '-';
+  if (item.parentName) return item.parentName;
+  // 拓扑树视图下父节点一定在同一结果集中
+  const findInTree = (nodes: SplitterTreeItem[]): string | null => {
+    for (const n of nodes) {
+      if (n.id === item.parentId) return n.splitterName;
+      const found = findInTree(n.children || []);
+      if (found) return found;
+    }
+    return null;
+  };
+  return findInTree(treeData.value) || '-';
 }
 
 const availableParents = computed(() => {

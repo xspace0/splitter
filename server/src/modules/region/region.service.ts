@@ -3,6 +3,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { LogService } from '../log/log.service';
 import { CreateRegionDto } from './dto/create-region.dto';
 import { UpdateRegionDto } from './dto/update-region.dto';
+import type { RequestUser } from '../auth/strategies/jwt.strategy';
 
 const levelMap: Record<number, string> = { 1: 'PROVINCE', 2: 'CITY', 3: 'DISTRICT' };
 
@@ -94,7 +95,7 @@ export class RegionService {
     return this.formatRegion(region);
   }
 
-  async create(dto: CreateRegionDto) {
+  async create(dto: CreateRegionDto, currentUser: RequestUser) {
     if (dto.regionLevel < 1 || dto.regionLevel > 3) {
       throw new BadRequestException('级别只能是1(省)/2(市)/3(区县)');
     }
@@ -134,10 +135,10 @@ export class RegionService {
       },
     });
 
-    this.logService.log({
-      userId: BigInt(1),
-      operationType: 'CREATE',
-      targetType: '行政区划',
+    await this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: '新增',
+      targetType: '权限',
       targetId: region.id,
       operationContent: `新增行政区划：${region.regionName}（${this.levelName(dto.regionLevel)}）`,
     });
@@ -145,7 +146,7 @@ export class RegionService {
     return this.formatRegion(region);
   }
 
-  async update(id: string, dto: UpdateRegionDto) {
+  async update(id: string, dto: UpdateRegionDto, currentUser: RequestUser) {
     const region = await this.prisma.sysRegion.findUnique({
       where: { id: BigInt(id) },
     });
@@ -159,10 +160,10 @@ export class RegionService {
       },
     });
 
-    this.logService.log({
-      userId: BigInt(1),
-      operationType: 'UPDATE',
-      targetType: '行政区划',
+    await this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: '修改',
+      targetType: '权限',
       targetId: updated.id,
       operationContent: `修改行政区划：${updated.regionName}`,
     });
@@ -170,7 +171,7 @@ export class RegionService {
     return this.formatRegion(updated);
   }
 
-  async remove(id: string) {
+  async remove(id: string, currentUser: RequestUser) {
     const region = await this.prisma.sysRegion.findUnique({
       where: { id: BigInt(id) },
     });
@@ -204,10 +205,10 @@ export class RegionService {
       where: { id: BigInt(id) },
     });
 
-    this.logService.log({
-      userId: BigInt(1),
-      operationType: 'DELETE',
-      targetType: '行政区划',
+    await this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: '删除',
+      targetType: '权限',
       targetId: BigInt(id),
       operationContent: `删除行政区划：${region.regionName}`,
     });

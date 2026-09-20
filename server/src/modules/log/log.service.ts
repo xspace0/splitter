@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RoleType } from '@/common/enums/role.enum';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
@@ -6,6 +6,8 @@ import { QueryLogDto } from './dto/query-log.dto';
 
 @Injectable()
 export class LogService {
+  private readonly logger = new Logger(LogService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async findMany(query: QueryLogDto, currentUser: RequestUser) {
@@ -76,6 +78,10 @@ export class LogService {
     };
   }
 
+  /**
+   * 写入操作日志（只追加表）。
+   * 调用方必须 await，避免 Promise 悬空导致审计日志静默丢失。
+   */
   async log(data: {
     userId: bigint;
     operationType: string;
@@ -84,7 +90,7 @@ export class LogService {
     operationContent?: string | null;
     ip?: string | null;
     userAgent?: string | null;
-  }) {
+  }): Promise<void> {
     try {
       await this.prisma.sysOperationLog.create({
         data: {
@@ -98,7 +104,11 @@ export class LogService {
         },
       });
     } catch (e) {
-      console.error('Failed to write operation log:', e);
+      // 日志写入失败不能影响主流程，但必须留下服务端错误记录以便排查
+      this.logger.error(
+        `Failed to write operation log (type=${data.operationType}, target=${data.targetType}): ${(e as Error).message}`,
+        (e as Error).stack,
+      );
     }
   }
 }

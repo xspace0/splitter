@@ -5,18 +5,22 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface LoginUser {
+  id: string;
+  account: string | null;
+  username: string;
+  roleType: string;
+  realNameVerified: number;
+  regionId: string;
+  phone: string | null;
+}
+
 export interface LoginResult {
   code: number;
   message: string;
   data: {
     token: string;
-    user: {
-      id: string;
-      account: string;
-      username: string;
-      roleType: string;
-      realNameVerified: number;
-    };
+    user: LoginUser;
   };
 }
 
@@ -25,11 +29,13 @@ export interface ProfileResult {
   message: string;
   data: {
     id: string;
-    account: string;
+    account: string | null;
     username: string;
     roleType: string;
     realNameVerified: number;
+    realNameAuthTime: string | null;
     phone: string | null;
+    regionId: string;
     lastLoginTime: string | null;
   };
 }

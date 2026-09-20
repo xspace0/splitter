@@ -40,6 +40,10 @@ jobs:
         working-directory: server
         run: npm ci
 
+      - name: 生成 Prisma Client
+        working-directory: server
+        run: npx prisma generate
+
       - name: Lint 代码规范检查
         working-directory: server
         run: npx eslint "{src,apps,libs,test}/**/*.ts"
@@ -51,7 +55,6 @@ jobs:
       - name: 单元测试
         working-directory: server
         run: npm run test -- --coverage
-        continue-on-error: true  # 初期没有测试时先不阻断
 
       - name: 登录 GitHub Container Registry
         if: github.event_name == 'push'
@@ -116,11 +119,8 @@ jobs:
         working-directory: web
         run: npm run type-check || npx vue-tsc --noEmit
 
-      - name: 单元测试
-        if: steps.check_frontend.outputs.exists == 'true'
-        working-directory: web
-        run: npm run test:unit -- --run
-        continue-on-error: true
+      # 说明：前端尚未引入单元测试框架，暂不执行 npm run test:unit，
+      # 避免调用不存在的 script 造成"虚假绿灯"。引入 Vitest 后再恢复该步骤。
 
       - name: 登录 GitHub Container Registry
         if: steps.check_frontend.outputs.exists == 'true' && github.event_name == 'push'

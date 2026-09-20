@@ -30,7 +30,7 @@
       <view v-for="item in list" :key="item.id" class="device-card" @click="onDeviceClick(item)">
         <view class="card-header">
           <view class="device-name-row">
-            <view class="level-dot" :class="'level-' + item.splitterLevel" :class="{ 'dot-fault': item.status === 2 }"></view>
+            <view class="level-dot" :class="['level-' + item.splitterLevel, { 'dot-fault': item.status === 2 }]"></view>
             <text class="device-name">{{ item.splitterName }}</text>
           </view>
           <text class="tag" :class="statusTagClass(item.status)">{{ statusName(item.status) }}</text>
@@ -47,8 +47,8 @@
       <view v-if="loading" class="loading">加载中...</view>
     </view>
 
-    <!-- 浮动添加按钮 -->
-    <view class="fab-btn" @click="goAdd">+</view>
+    <!-- 浮动添加按钮（查看者隐藏） -->
+    <view v-if="!isViewer" class="fab-btn" @click="goAdd">+</view>
 
     <!-- 设备详情弹窗 -->
     <view v-if="showDetail" class="modal-mask" @click="showDetail = false">
@@ -68,11 +68,12 @@
           <view class="detail-row"><text class="d-label">备注</text><text class="d-value">{{ currentDevice.remark || '-' }}</text></view>
         </view>
         <view class="detail-footer">
-          <button v-if="currentDevice && currentDevice.status === 1" class="btn btn-fault" @click="reportFault">故障上报</button>
-          <button v-if="currentDevice && currentDevice.status === 2" class="btn btn-primary" @click="recoverFault">故障恢复</button>
+          <button v-if="!isViewer && currentDevice && currentDevice.status === 1" class="btn btn-fault" @click="reportFault">故障上报</button>
+          <button v-if="!isViewer && currentDevice && currentDevice.status === 2" class="btn btn-primary" @click="recoverFault">故障恢复</button>
         </view>
       </view>
     </view>
+    <custom-tabbar current="pages/splitter/splitter" />
   </view>
 </template>
 
@@ -111,6 +112,10 @@ export default {
     };
   },
   computed: {
+    isViewer() {
+      const profile = uni.getStorageSync('profile') || {};
+      return profile.roleType === 'VIEWER';
+    },
     selectedCommunityLabel() {
       const o = this.communityOptions.find(c => c.value === this.filterCommunity);
       return o ? o.label : '全部社区';
@@ -137,11 +142,11 @@ export default {
   methods: {
     async loadCommunities() {
       try {
-        const res = await this.$api.community.getCommunities({ page: 1, pageSize: 100 });
-        this.communities = res.data.list;
+        const res = await this.$api.community.getMapCommunityOptions();
+        this.communities = res.data.list || [];
         this.communityOptions = [
           { value: '', label: '全部社区' },
-          ...res.data.list.map(c => ({ value: c.id, label: c.communityName })),
+          ...this.communities.map(c => ({ value: c.id, label: c.communityName })),
         ];
       } catch (e) {
         console.error('加载社区失败', e);
@@ -163,15 +168,31 @@ export default {
           this.list = res.data.list;
         }
         this.total = res.data.total;
-        // 计算统计
-        this.stats.normal = this.list.filter(s => s.status === 1).length;
-        this.stats.fault = this.list.filter(s => s.status === 2).length;
-        this.stats.stopped = this.list.filter(s => s.status === 3).length;
-        this.stats.building = this.list.filter(s => s.status === 4).length;
+        // 第一页时拉取全量数据计算统计（确保统计准确）
+        if (!append) {
+          this.loadStats();
+        }
       } catch (e) {
         console.error('加载列表失败', e);
       } finally {
         this.loading = false;
+      }
+    },
+    async loadStats() {
+      try {
+        const params = { page: 1, pageSize: 500 };
+        if (this.keyword) params.keyword = this.keyword;
+        if (this.filterCommunity) params.communityId = this.filterCommunity;
+        if (this.filterLevel !== '') params.splitterLevel = this.filterLevel;
+        if (this.filterStatus !== '') params.status = this.filterStatus;
+        const res = await this.$api.splitter.getSplitters(params);
+        const all = res.data.list || [];
+        this.stats.normal = all.filter(s => s.status === 1).length;
+        this.stats.fault = all.filter(s => s.status === 2).length;
+        this.stats.stopped = all.filter(s => s.status === 3).length;
+        this.stats.building = all.filter(s => s.status === 4).length;
+      } catch (e) {
+        console.error('加载统计失败', e);
       }
     },
     onCommunityChange(e) {

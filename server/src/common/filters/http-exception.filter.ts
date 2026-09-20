@@ -32,11 +32,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code = (r.code as number) || status;
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
+      // 非业务异常（如数据库连接失败）：服务端记录完整堆栈，客户端只看到通用提示
       this.logger.error(
         `Unhandled exception: ${exception.message}`,
         exception.stack,
       );
+      const nodeEnv = process.env.NODE_ENV;
+      if (nodeEnv === 'production' || nodeEnv === 'test') {
+        message = '服务暂时不可用，请稍后重试';
+      } else {
+        message = exception.message;
+      }
     }
 
     response.status(status).json({

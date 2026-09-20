@@ -7,24 +7,28 @@ import {
   Body,
   Param,
   Query,
-  ParseIntPipe,
+  UseGuards,
+  HttpCode,
 } from '@nestjs/common';
 import { CommunityService } from './community.service';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { UpdateCommunityDto } from './dto/update-community.dto';
 import { QueryCommunityDto } from './dto/query-community.dto';
+import { JwtAuthGuard } from '@/common/guards/jwt-auth.guard';
+import { RolesGuard } from '@/common/guards/roles.guard';
 import { Roles } from '@/common/decorators/roles.decorator';
 import { RoleType } from '@/common/enums/role.enum';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
 
 @Controller('communities')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CommunityController {
   constructor(private readonly communityService: CommunityService) {}
 
   @Post()
   @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
-  async create(
+  create(
     @Body() dto: CreateCommunityDto,
     @CurrentUser() user: RequestUser,
   ) {
@@ -33,48 +37,61 @@ export class CommunityController {
 
   @Get()
   @Roles(RoleType.SUPER_ADMIN, RoleType.REGION_ADMIN, RoleType.ADMIN)
-  async findAll(
+  findAll(
     @Query() query: QueryCommunityDto,
     @CurrentUser() user: RequestUser,
   ) {
     return this.communityService.findAll(query, user);
   }
 
-  @Get(':id')
+  @Get('my')
+  getMyCommunities(@CurrentUser() user: RequestUser) {
+    return this.communityService.getMyCommunities(user);
+  }
+
+  @Get('map-options')
+  getMapCommunityOptions(@CurrentUser() user: RequestUser) {
+    return this.communityService.getMapCommunityOptions(user);
+  }
+
+  @Get('stats')
   @Roles(RoleType.SUPER_ADMIN, RoleType.REGION_ADMIN, RoleType.ADMIN)
-  async findOne(
-    @Param('id') id: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.communityService.findOne(id, user);
+  getStats(@CurrentUser() user: RequestUser) {
+    return this.communityService.getStats(user);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.communityService.findOne(BigInt(id), user);
   }
 
   @Put(':id')
   @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
-  async update(
+  update(
     @Param('id') id: string,
     @Body() dto: UpdateCommunityDto,
     @CurrentUser() user: RequestUser,
   ) {
-    return this.communityService.update(id, dto, user);
+    return this.communityService.update(BigInt(id), dto, user);
   }
 
-  @Put(':id/status')
+  @Post(':id/disable')
+  @HttpCode(200)
   @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
-  async updateStatus(
-    @Param('id') id: string,
-    @Body('status', ParseIntPipe) status: number,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.communityService.updateStatus(id, status, user);
+  disable(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.communityService.disable(BigInt(id), user);
+  }
+
+  @Post(':id/enable')
+  @HttpCode(200)
+  @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
+  enable(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.communityService.enable(BigInt(id), user);
   }
 
   @Delete(':id')
   @Roles(RoleType.SUPER_ADMIN, RoleType.ADMIN)
-  async remove(
-    @Param('id') id: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.communityService.remove(id, user);
+  remove(@Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.communityService.remove(BigInt(id), user);
   }
 }

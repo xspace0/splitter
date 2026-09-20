@@ -77,6 +77,7 @@
     </view>
 
     <view class="version">分光器资源管理系统 v1.0.0</view>
+    <custom-tabbar current="pages/profile/profile" />
   </view>
 </template>
 
@@ -111,11 +112,33 @@ export default {
     this.loadProfile();
   },
   methods: {
-    loadProfile() {
+    async loadProfile() {
+      // 先从本地读，快速展示
       const p = uni.getStorageSync('profile');
       if (p) {
         this.profile = { ...this.profile, ...p };
+        this.authTime = this.formatAuthTime(p.authTime || p.realNameAuthTime);
       }
+      // 从服务端拉取最新数据
+      const token = uni.getStorageSync('token');
+      if (!token) return;
+      try {
+        const res = await this.$api.auth.getProfile();
+        const latest = res.data;
+        this.profile = { ...this.profile, ...latest };
+        this.authTime = this.formatAuthTime(latest.authTime || latest.realNameAuthTime);
+        uni.setStorageSync('profile', latest);
+      } catch (e) {
+        console.error('获取用户信息失败', e);
+      }
+    },
+    formatAuthTime(time) {
+      if (!time) return '';
+      const d = new Date(time);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     },
     maskPhone(phone) {
       if (!phone || phone.length < 7) return phone;

@@ -47,9 +47,9 @@ export class AuthService {
       data: { lastLoginTime: new Date() },
     });
 
-    this.logService.log({
+    await this.logService.log({
       userId: user.id,
-      operationType: 'LOGIN',
+      operationType: '登录',
       targetType: '用户',
       targetId: user.id,
       operationContent: 'PC端账号密码登录',
@@ -59,6 +59,8 @@ export class AuthService {
       sub: user.id.toString(),
       account: user.account!,
       roleType: user.roleType,
+      realNameVerified: user.realNameVerified,
+      regionId: user.regionId?.toString() || '',
     };
 
     const token = await this.jwtService.signAsync(payload);
@@ -71,6 +73,8 @@ export class AuthService {
         username: user.username,
         roleType: user.roleType,
         realNameVerified: user.realNameVerified,
+        regionId: user.regionId?.toString() || '',
+        phone: user.phone,
       },
     };
   }
@@ -90,7 +94,9 @@ export class AuthService {
       username: user.username,
       roleType: user.roleType,
       realNameVerified: user.realNameVerified,
+      realNameAuthTime: user.realNameAuthTime,
       phone: user.phone,
+      regionId: user.regionId?.toString() || '',
       lastLoginTime: user.lastLoginTime,
     };
   }
@@ -113,14 +119,26 @@ export class AuthService {
       throw new BadRequestException('原密码错误');
     }
 
-    if (newPassword.length < 6) {
-      throw new BadRequestException('新密码至少6位');
+    if (newPassword.length < 8) {
+      throw new BadRequestException('新密码至少8位');
+    }
+    if (!/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      throw new BadRequestException('新密码需同时包含字母与数字');
     }
 
-    const newHash = await bcrypt.hash(newPassword, 10);
+    // bcrypt cost=12，与文档《数据库设计》3.1 约定一致
+    const newHash = await bcrypt.hash(newPassword, 12);
     await this.prisma.sysUser.update({
       where: { id: user.id },
       data: { passwordHash: newHash },
+    });
+
+    await this.logService.log({
+      userId: user.id,
+      operationType: '修改',
+      targetType: '用户',
+      targetId: user.id,
+      operationContent: '用户自主修改登录密码',
     });
 
     this.logger.log(`User ${user.account} changed password`);
@@ -158,7 +176,7 @@ export class AuthService {
     });
 
     if (!user) {
-      // 首次登录创建小程序用户
+      // 首次登录创建小程序用户（默认查看者角色）
       user = await this.prisma.sysUser.create({
         data: {
           account: `mini_${code.substring(0, 10)}`,
@@ -180,6 +198,8 @@ export class AuthService {
       sub: user.id.toString(),
       account: user.account || '',
       roleType: user.roleType,
+      realNameVerified: user.realNameVerified,
+      regionId: user.regionId?.toString() || '',
     };
 
     const token = this.jwtService.sign(payload, { expiresIn: '7d' });
@@ -189,9 +209,9 @@ export class AuthService {
       data: { lastLoginTime: new Date() },
     });
 
-    this.logService.log({
+    await this.logService.log({
       userId: user.id,
-      operationType: 'LOGIN',
+      operationType: '登录',
       targetType: '用户',
       targetId: user.id,
       operationContent: '小程序微信登录',
@@ -207,7 +227,7 @@ export class AuthService {
         roleType: user.roleType,
         realNameVerified: user.realNameVerified,
         phone: user.phone,
-        region: user.regionId?.toString() || '',
+        regionId: user.regionId?.toString() || '',
       },
     };
   }
@@ -236,6 +256,20 @@ export class AuthService {
       throw new BadRequestException('身份证号格式不正确');
     }
 
+    // 根据区县名称查找regionId
+    let regionId: bigint | null = null;
+    if (data.district) {
+      const region = await this.prisma.sysRegion.findFirst({
+        where: {
+          regionName: data.district,
+        },
+        select: { id: true, regionLevel: true },
+      });
+      if (region && Number(region.regionLevel) === 3) {
+        regionId = region.id;
+      }
+    }
+
     // 简化实现：直接认证通过
     await this.prisma.sysUser.update({
       where: { id: user.id },
@@ -244,17 +278,37 @@ export class AuthService {
         realNameVerified: 1,
         realNameAuthTime: new Date(),
         idCardNo: data.idCard,
+        regionId,
       },
     });
 
-    this.logService.log({
+    await this.logService.log({
       userId: user.id,
-      operationType: 'UPDATE',
+      operationType: '修改',
       targetType: '用户',
       targetId: user.id,
       operationContent: `实名认证通过：${data.realName}`,
     });
 
-    return { message: '认证成功' };
+    // 返回新的token（包含更新后的认证状态和regionId）
+    const payload: JwtPayload = {
+      sub: user.id.toString(),
+      account: user.account || '',
+      roleType: user.roleType,
+      realNameVerified: 1,
+      regionId: regionId?.toString() || '',
+    };
+    const token = this.jwtService.sign(payload, { expiresIn: '7d' });
+
+    return {
+      message: '认证成功',
+      token,
+      user: {
+        id: user.id.toString(),
+        username: data.realName,
+        realNameVerified: 1,
+        regionId: regionId?.toString() || '',
+      },
+    };
   }
 }

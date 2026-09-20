@@ -5,6 +5,7 @@ import { LoginDto } from './dto/login.dto';
 import { MiniLoginDto } from './dto/mini-login.dto';
 import { RealNameAuthDto } from './dto/real-name-auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
+import { AllowUnverified } from '../../common/decorators/allow-unverified.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { RequestUser } from './strategies/jwt.strategy';
 
@@ -27,12 +28,14 @@ export class AuthController {
     return this.authService.miniLogin(dto.code, ip);
   }
 
+  @AllowUnverified()
   @ApiOperation({ summary: '获取当前用户信息' })
   @Get('profile')
   getProfile(@CurrentUser() user: RequestUser) {
     return this.authService.getProfile(user.id);
   }
 
+  @AllowUnverified()
   @ApiOperation({ summary: '修改密码' })
   @Put('password')
   changePassword(
@@ -42,6 +45,7 @@ export class AuthController {
     return this.authService.changePassword(user.id, dto.oldPassword, dto.newPassword);
   }
 
+  @AllowUnverified()
   @ApiOperation({ summary: '更新个人信息' })
   @Put('profile')
   updateProfile(
@@ -51,6 +55,7 @@ export class AuthController {
     return this.authService.updateProfile(user.id, dto);
   }
 
+  @AllowUnverified()
   @ApiOperation({ summary: '小程序实名认证' })
   @Post('real-name-auth')
   submitRealName(

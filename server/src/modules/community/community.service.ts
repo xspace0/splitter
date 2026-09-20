@@ -1,9 +1,7 @@
-import {
+﻿import {
   Injectable,
-  BadRequestException,
   NotFoundException,
   ForbiddenException,
-  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -13,10 +11,22 @@ import { CreateCommunityDto } from './dto/create-community.dto';
 import { UpdateCommunityDto } from './dto/update-community.dto';
 import { QueryCommunityDto } from './dto/query-community.dto';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
+import { SplitterService } from '../splitter/splitter.service';
 
-const _COMMUNITY_STATUS_ACTIVE = 1;
-const COMMUNITY_STATUS_DISABLED = 0;
-const DELETE_GRACE_DAYS = 30;
+// 业务错误码
+const ERR_DUPLICATE = 1003;
+const ERR_NO_PERMISSION = 3001;
+const ERR_NO_DATA_PERMISSION = 3002;
+const ERR_COMMUNITY_DISABLED = 3003;
+const ERR_LOGICAL_DELETED = 3004;
+const ERR_CANNOT_DELETE = 3011;
+const ERR_PARAM = 4001;
+
+function bizError(code: number, message: string, statusCode = 400) {
+  const err = new ForbiddenException({ code, message });
+  (err as any).status = statusCode;
+  return err;
+}
 
 @Injectable()
 export class CommunityService {
@@ -25,325 +35,474 @@ export class CommunityService {
   constructor(
     private prisma: PrismaService,
     private logService: LogService,
+    private splitterService: SplitterService,
   ) {}
+
+  // ========== 权限校验 ==========
+
+  /**
+   * 社区管理写权限：超管和管理员可写
+   */
+  private checkWritePermission(user: RequestUser) {
+    if (user.roleType !== RoleType.SUPER_ADMIN && user.roleType !== RoleType.ADMIN) {
+      throw bizError(ERR_NO_PERMISSION, '当前角色无社区管理写操作权限', 403);
+    }
+  }
+
+  /**
+   * 社区管理读权限：超管、区域管理员、管理员可读列表
+   * 操作员、查看者禁止访问社区管理列表
+   */
+  private checkReadListPermission(user: RequestUser) {
+    if (
+      user.roleType === RoleType.OPERATOR ||
+      user.roleType === RoleType.VIEWER
+    ) {
+      throw bizError(ERR_NO_PERMISSION, '当前角色无权限访问社区管理列表', 403);
+    }
+  }
+
+  /**
+   * 构建社区查询的基础where条件
+   */
+  private buildBaseWhere(user: RequestUser, extraWhere: any = {}): any {
+    const where: any = { ...extraWhere };
+
+    // 逻辑删除过滤：超管不过滤，其他角色过滤
+    if (user.roleType !== RoleType.SUPER_ADMIN) {
+      where.isDeleted = 0;
+    }
+
+    // 数据权限
+    if (user.roleType === RoleType.REGION_ADMIN) {
+      // 区域管理员：本区域全部社区
+      // 需要先查出该区域下的所有区县
+      // 简化处理：regionId存储的是区县，区域管理员需要用父级region过滤
+      // 这里先用用户的regionId，假设区域管理员绑定的是市级region
+      where.regionId = BigInt(user.regionId);
+    } else if (user.roleType === RoleType.ADMIN) {
+      // 管理员：本区县社区
+      where.regionId = BigInt(user.regionId);
+    }
+    // SUPER_ADMIN: 不过滤
+    // OPERATOR/VIEWER: 在社区管理列表接口直接拒绝，地图接口另行处理
+
+    return where;
+  }
+
+  /**
+   * 校验社区名称在未删除状态下唯一
+   */
+  private async checkNameUnique(communityName: string, excludeId?: bigint) {
+    const where: any = {
+      communityName,
+      isDeleted: 0,
+    };
+    if (excludeId) {
+      where.id = { not: excludeId };
+    }
+    const exists = await this.prisma.community.findFirst({ where });
+    if (exists) {
+      throw bizError(ERR_DUPLICATE, '社区名称已存在', 400);
+    }
+  }
+
+  /**
+   * 校验管理员是否有该区县的权限
+   */
+  private checkRegionAccess(user: RequestUser, regionId: bigint) {
+    if (user.roleType === RoleType.SUPER_ADMIN) return;
+    // 区域管理员：需要校验社区所属区县属于本区域
+    // 管理员：必须是本区县
+    if (
+      user.roleType === RoleType.ADMIN &&
+      BigInt(user.regionId) !== regionId
+    ) {
+      throw bizError(ERR_NO_DATA_PERMISSION, '您没有权限操作该区县的社区', 403);
+    }
+  }
+
+  // ========== CRUD ==========
 
   async create(dto: CreateCommunityDto, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
 
-    const existing = await this.prisma.community.findFirst({
-      where: { communityName: dto.communityName, isDeleted: 0 },
-    });
-    if (existing) {
-      throw new ConflictException('社区名称已存在');
+    if (!dto.regionId) {
+      // 管理员创建时默认本区县
+      if (currentUser.roleType === RoleType.ADMIN) {
+        dto.regionId = String(currentUser.regionId);
+      } else {
+        throw bizError(ERR_PARAM, '区县不能为空', 400);
+      }
     }
 
-    let regionId: bigint | null = null;
-    if (currentUser.roleType === RoleType.SUPER_ADMIN) {
-      regionId = dto.regionId ? BigInt(dto.regionId) : null;
-    } else {
-      regionId = await this.getUserRegionId(currentUser.id);
-    }
+    const regionId = BigInt(dto.regionId);
+    this.checkRegionAccess(currentUser, regionId);
 
-    if (currentUser.roleType === RoleType.REGION_ADMIN) {
-      throw new ForbiddenException('区域管理员无新增社区权限');
-    }
+    // 名称唯一
+    await this.checkNameUnique(dto.communityName);
 
     const community = await this.prisma.community.create({
       data: {
         communityName: dto.communityName,
-        regionId: regionId ?? BigInt(0),
+        regionId,
         remark: dto.remark || null,
+        status: 1,
         creatorId: BigInt(currentUser.id),
       },
     });
 
-    this.logger.log(
-      `Community created: ${community.communityName} by ${currentUser.account}`,
-    );
-
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'CREATE',
+      operationType: '新增',
       targetType: '社区',
       targetId: community.id,
-      operationContent: `新增社区 ${community.communityName}`,
+      operationContent: JSON.stringify({ communityName: dto.communityName }),
     });
 
-    return this.formatCommunity(community);
+    return community;
   }
 
   async findAll(query: QueryCommunityDto, currentUser: RequestUser) {
-    this.checkReadPermission(currentUser);
+    // 社区管理列表：操作员、查看者禁止访问
+    this.checkReadListPermission(currentUser);
 
-    const where: Record<string, unknown> = {};
+    const page = query.page || 1;
+    const pageSize = query.pageSize || 20;
+    const skip = (page - 1) * pageSize;
 
-    if (currentUser.roleType === RoleType.SUPER_ADMIN) {
-      where.isDeleted = 0;
-    } else {
-      where.isDeleted = 0;
-      const myRegionId = await this.getUserRegionId(currentUser.id);
-      where.regionId = myRegionId;
-    }
+    const where = this.buildBaseWhere(currentUser);
 
     if (query.keyword) {
-      where.communityName = { contains: query.keyword, mode: 'insensitive' };
+      where.communityName = { contains: query.keyword };
     }
-
-    if (query.status !== undefined && query.status !== '') {
+    if (query.status !== undefined && query.status !== null && query.status !== '') {
       where.status = Number(query.status);
     }
-
-    if (query.regionId && currentUser.roleType === RoleType.SUPER_ADMIN) {
+    if (query.regionId) {
       where.regionId = BigInt(query.regionId);
     }
 
-    const [total, communities] = await Promise.all([
+    const [total, list] = await Promise.all([
       this.prisma.community.count({ where }),
       this.prisma.community.findMany({
         where,
-        skip: query.skip,
-        take: query.take,
+        skip,
+        take: pageSize,
         orderBy: { createTime: 'desc' },
-      }),
+        include: {
+          region: { select: { id: true, regionName: true, regionLevel: true } },
+        },
+      } as any),
     ]);
 
-    return {
-      list: communities.map((c) => this.formatCommunity(c)),
-      total,
-      page: query.page || 1,
-      pageSize: query.pageSize || 20,
-    };
+    return { total, list };
   }
 
-  async findOne(id: string, currentUser: RequestUser) {
-    this.checkReadPermission(currentUser);
+  async findOne(id: bigint, currentUser: RequestUser) {
+    const where = this.buildBaseWhere(currentUser, { id });
 
     const community = await this.prisma.community.findFirst({
-      where: { id: BigInt(id), isDeleted: 0 },
-    });
-
+      where,
+      include: {
+        region: { select: { id: true, regionName: true, regionLevel: true } },
+      },
+    } as any);
     if (!community) {
-      throw new NotFoundException('社区不存在');
+      throw new NotFoundException('社区不存在或无权限访问');
     }
 
-    if (currentUser.roleType !== RoleType.SUPER_ADMIN) {
-      const myRegionId = await this.getUserRegionId(currentUser.id);
-      if (community.regionId !== myRegionId) {
-        throw new ForbiddenException('无权访问该社区');
-      }
-    }
-
-    return this.formatCommunity(community);
+    return community;
   }
 
-  async update(id: string, dto: UpdateCommunityDto, currentUser: RequestUser) {
+  async update(id: bigint, dto: UpdateCommunityDto, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
 
-    const community = await this.prisma.community.findFirst({
-      where: { id: BigInt(id), isDeleted: 0 },
-    });
-
+    const where = this.buildBaseWhere(currentUser, { id });
+    const community = await this.prisma.community.findFirst({ where });
     if (!community) {
-      throw new NotFoundException('社区不存在');
+      throw new NotFoundException('社区不存在或无权限访问');
     }
 
-    await this.checkRegionAccess(currentUser, community.regionId);
-
-    if (community.status === COMMUNITY_STATUS_DISABLED) {
-      throw new ForbiddenException('社区已停用，禁止编辑，请先恢复启用');
+    if (community.isDeleted === 1) {
+      throw bizError(ERR_LOGICAL_DELETED, '该社区已逻辑删除，禁止写操作', 403);
     }
 
+    // 停用社区禁止编辑（全部角色）
+    if (community.status === 0) {
+      throw bizError(ERR_COMMUNITY_DISABLED, '社区已停用，禁止执行编辑操作', 403);
+    }
+
+    this.checkRegionAccess(currentUser, community.regionId);
+
+    // 名称唯一校验
     if (dto.communityName && dto.communityName !== community.communityName) {
-      const existing = await this.prisma.community.findFirst({
-        where: { communityName: dto.communityName, isDeleted: 0, NOT: { id: BigInt(id) } },
-      });
-      if (existing) {
-        throw new ConflictException('社区名称已存在');
-      }
+      await this.checkNameUnique(dto.communityName, id);
     }
 
-    const data: { communityName?: string; remark?: string | null } = {};
-    if (dto.communityName !== undefined) data.communityName = dto.communityName;
-    if (dto.remark !== undefined) data.remark = dto.remark || null;
+    const updateData: any = {};
+    if (dto.communityName !== undefined) updateData.communityName = dto.communityName;
+    if (dto.remark !== undefined) updateData.remark = dto.remark || null;
 
     const updated = await this.prisma.community.update({
-      where: { id: BigInt(id) },
-      data,
+      where: { id },
+      data: updateData,
     });
 
-    this.logger.log(
-      `Community ${updated.id} updated by ${currentUser.account}`,
-    );
-
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'UPDATE',
+      operationType: '修改',
       targetType: '社区',
-      targetId: BigInt(id),
-      operationContent: `修改社区 ${community.communityName}`,
+      targetId: id,
+      operationContent: JSON.stringify(dto),
     });
 
-    return this.formatCommunity(updated);
+    return updated;
   }
 
-  async updateStatus(id: string, status: number, currentUser: RequestUser) {
+  /**
+   * 停用社区
+   */
+  async disable(id: bigint, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
 
-    const community = await this.prisma.community.findFirst({
-      where: { id: BigInt(id), isDeleted: 0 },
-    });
-
+    const where = this.buildBaseWhere(currentUser, { id });
+    const community = await this.prisma.community.findFirst({ where });
     if (!community) {
-      throw new NotFoundException('社区不存在');
+      throw new NotFoundException('社区不存在或无权限访问');
     }
 
-    await this.checkRegionAccess(currentUser, community.regionId);
+    if (community.isDeleted === 1) {
+      throw bizError(ERR_LOGICAL_DELETED, '该社区已逻辑删除', 403);
+    }
 
-    const data: { status: number; disableTime: Date | null } = {
-      status,
-      disableTime: status === COMMUNITY_STATUS_DISABLED ? new Date() : null,
-    };
+    if (community.status === 0) {
+      throw bizError(ERR_PARAM, '社区已是停用状态', 400);
+    }
+
+    this.checkRegionAccess(currentUser, community.regionId);
 
     const updated = await this.prisma.community.update({
-      where: { id: BigInt(id) },
-      data,
+      where: { id },
+      data: {
+        status: 0,
+        disableTime: new Date(),
+      },
     });
 
-    const action = status === COMMUNITY_STATUS_DISABLED ? 'disabled' : 'enabled';
-    this.logger.log(
-      `Community ${updated.communityName} ${action} by ${currentUser.account}`,
-    );
-
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: status === COMMUNITY_STATUS_DISABLED ? 'DISABLE' : 'ENABLE',
+      operationType: '修改',
       targetType: '社区',
-      targetId: BigInt(id),
-      operationContent: `${status === COMMUNITY_STATUS_DISABLED ? '停用' : '恢复启用'}社区 ${community.communityName}${status === COMMUNITY_STATUS_DISABLED ? '，记录disable_time' : '，清空停用时间'}`,
+      targetId: id,
+      operationContent: JSON.stringify({ action: '停用', communityName: community.communityName }),
     });
 
-    return this.formatCommunity(updated);
+    return updated;
   }
 
-  async remove(id: string, currentUser: RequestUser) {
+  /**
+   * 恢复启用社区
+   */
+  async enable(id: bigint, currentUser: RequestUser) {
     this.checkWritePermission(currentUser);
 
-    const community = await this.prisma.community.findFirst({
-      where: { id: BigInt(id), isDeleted: 0 },
+    const where = this.buildBaseWhere(currentUser, { id });
+    const community = await this.prisma.community.findFirst({ where });
+    if (!community) {
+      throw new NotFoundException('社区不存在或无权限访问');
+    }
+
+    if (community.isDeleted === 1) {
+      throw bizError(ERR_LOGICAL_DELETED, '该社区已逻辑删除', 403);
+    }
+
+    if (community.status === 1) {
+      throw bizError(ERR_PARAM, '社区已是正常状态', 400);
+    }
+
+    this.checkRegionAccess(currentUser, community.regionId);
+
+    const updated = await this.prisma.community.update({
+      where: { id },
+      data: {
+        status: 1,
+        disableTime: null,
+      },
     });
 
+    await this.logService.log({
+      userId: BigInt(currentUser.id),
+      operationType: '修改',
+      targetType: '社区',
+      targetId: id,
+      operationContent: JSON.stringify({ action: '恢复启用', communityName: community.communityName }),
+    });
+
+    return updated;
+  }
+
+  async remove(id: bigint, currentUser: RequestUser) {
+    this.checkWritePermission(currentUser);
+
+    const where = this.buildBaseWhere(currentUser, { id });
+    const community = await this.prisma.community.findFirst({ where });
     if (!community) {
-      throw new NotFoundException('社区不存在');
+      throw new NotFoundException('社区不存在或无权限访问');
     }
 
-    await this.checkRegionAccess(currentUser, community.regionId);
-
-    if (community.status !== COMMUNITY_STATUS_DISABLED) {
-      throw new BadRequestException('只有停用状态的社区才能删除');
+    if (community.isDeleted === 1) {
+      throw bizError(ERR_LOGICAL_DELETED, '该社区已是逻辑删除状态', 403);
     }
 
+    this.checkRegionAccess(currentUser, community.regionId);
+
+    // 前置条件1：社区必须是停用状态
+    if (community.status !== 0) {
+      throw bizError(ERR_CANNOT_DELETE, '社区不满足删除条件，需先停用且停用满30天', 400);
+    }
+
+    // 前置条件2：停用时间必须满30天
     if (!community.disableTime) {
-      throw new BadRequestException('停用时间无效，无法删除');
+      throw bizError(ERR_CANNOT_DELETE, '社区不满足删除条件，停用时间记录异常', 400);
     }
-
+    const disableDate = new Date(community.disableTime);
     const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - community.disableTime.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (diffDays < DELETE_GRACE_DAYS) {
-      throw new BadRequestException(
-        `社区停用未满 ${DELETE_GRACE_DAYS} 天（当前 ${diffDays} 天），暂不可删除`,
+    const diffDays = Math.floor((now.getTime() - disableDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays < 30) {
+      throw bizError(
+        ERR_CANNOT_DELETE,
+        `社区不满足删除条件，需停用满30天（当前已停用${diffDays}天）`,
+        400,
       );
     }
 
-    const splitterCount = await this.prisma.opticalSplitter.count({
-      where: { communityId: BigInt(id), isDeleted: 0 },
-    });
-
+    // 执行逻辑删除
     await this.prisma.community.update({
-      where: { id: BigInt(id) },
+      where: { id },
       data: { isDeleted: 1 },
     });
 
-    if (splitterCount > 0) {
-      await this.prisma.opticalSplitter.updateMany({
-        where: { communityId: BigInt(id), isDeleted: 0 },
-        data: { isDeleted: 1 },
-      });
-    }
-
-    this.logger.log(
-      `Community ${community.communityName} deleted (${splitterCount} splitters) by ${currentUser.account}`,
+    // 批量逻辑删除下属分光器
+    const deletedCount = await this.splitterService.batchDeleteByCommunity(
+      id,
+      BigInt(currentUser.id),
     );
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'DELETE',
+      operationType: '删除',
       targetType: '社区',
-      targetId: BigInt(id),
-      operationContent: `删除社区 ${community.communityName}${splitterCount > 0 ? `，批量逻辑删除（${splitterCount}条分光器）` : ''}`,
+      targetId: id,
+      operationContent: JSON.stringify({
+        communityName: community.communityName,
+        deletedSplitterCount: deletedCount,
+        remark: '社区逻辑删除，下属分光器已批量逻辑删除',
+      }),
     });
 
-    return { message: '删除成功', deletedSplitters: splitterCount };
+    return { success: true, deletedSplitterCount: deletedCount };
   }
 
-  private checkReadPermission(currentUser: RequestUser) {
-    if (currentUser.roleType === RoleType.VIEWER) {
-      throw new ForbiddenException('查看者无权访问社区管理列表');
+  /**
+   * 操作员获取已分配的社区列表
+   */
+  async getMyCommunities(currentUser: RequestUser) {
+    if (currentUser.roleType !== RoleType.OPERATOR) {
+      return { list: [], total: 0 };
     }
+
+    const records = await this.prisma.sysUserCommunity.findMany({
+      where: {
+        userId: BigInt(currentUser.id),
+        status: 1,
+        isDeleted: 0,
+      },
+      include: {
+        community: {
+          where: { isDeleted: 0 },
+          include: {
+            region: { select: { id: true, regionName: true } },
+          },
+        },
+      },
+      orderBy: { createTime: 'desc' },
+    } as any);
+
+    const list = records
+      .filter((r: any) => r.community !== null)
+      .map((r: any) => ({
+        ...(r.community as object),
+        assignedTime: r.createTime,
+      }));
+
+    return { list, total: list.length };
+  }
+
+  /**
+   * 地图社区下拉选项
+   * - VIEWER: 返回本区县全部有效社区（is_deleted=0）
+   * - OPERATOR: 返回已分配社区
+   * - ADMIN/REGION_ADMIN/SUPER_ADMIN: 返回对应范围的社区
+   * 停用社区正常返回，前端置灰
+   */
+  async getMapCommunityOptions(currentUser: RequestUser) {
     if (currentUser.roleType === RoleType.OPERATOR) {
-      throw new ForbiddenException('操作员无权访问社区管理列表');
+      // 操作员：已分配社区
+      const result = await this.getMyCommunities(currentUser);
+      return { list: result.list };
     }
-  }
 
-  private checkWritePermission(currentUser: RequestUser) {
-    const allowed = [RoleType.SUPER_ADMIN, RoleType.ADMIN];
-    if (!allowed.includes(currentUser.roleType as RoleType)) {
-      throw new ForbiddenException('您没有社区管理写权限');
+    const where: any = { isDeleted: 0 };
+
+    if (
+      currentUser.roleType === RoleType.VIEWER ||
+      currentUser.roleType === RoleType.ADMIN
+    ) {
+      // 查看者/管理员：本区县
+      where.regionId = BigInt(currentUser.regionId);
+    } else if (currentUser.roleType === RoleType.REGION_ADMIN) {
+      // 区域管理员：本区域
+      where.regionId = BigInt(currentUser.regionId);
     }
-  }
+    // SUPER_ADMIN: 全部
 
-  private async checkRegionAccess(currentUser: RequestUser, regionId: bigint) {
-    if (currentUser.roleType === RoleType.SUPER_ADMIN) return;
-
-    const myRegionId = await this.getUserRegionId(currentUser.id);
-    if (myRegionId !== regionId) {
-      throw new ForbiddenException('无权操作其他区域的社区');
-    }
-  }
-
-  private async getUserRegionId(userId: string): Promise<bigint> {
-    const user = await this.prisma.sysUser.findUnique({
-      where: { id: BigInt(userId) },
-      select: { regionId: true },
+    const list = await this.prisma.community.findMany({
+      where,
+      select: {
+        id: true,
+        communityName: true,
+        status: true,
+        regionId: true,
+      },
+      orderBy: { communityName: 'asc' },
     });
-    return user?.regionId ?? BigInt(0);
+
+    return { list };
   }
 
-  private formatCommunity(community: {
-    id: bigint;
-    communityName: string;
-    regionId: bigint;
-    remark: string | null;
-    status: number;
-    disableTime: Date | null;
-    isDeleted: number;
-    creatorId: bigint;
-    createTime: Date;
-    updateTime: Date;
-  }) {
+  /**
+   * 社区统计（超管、区域管理员、管理员可查看）
+   */
+  async getStats(currentUser: RequestUser) {
+    if (
+      currentUser.roleType === RoleType.OPERATOR ||
+      currentUser.roleType === RoleType.VIEWER
+    ) {
+      throw bizError(ERR_NO_PERMISSION, '当前角色无权限查看社区统计', 403);
+    }
+
+    const where = this.buildBaseWhere(currentUser);
+
+    const all = await this.prisma.community.findMany({
+      where,
+      select: { status: true },
+    });
+
     return {
-      id: community.id.toString(),
-      communityName: community.communityName,
-      regionId: community.regionId.toString(),
-      remark: community.remark,
-      status: community.status,
-      disableTime: community.disableTime,
-      isDeleted: community.isDeleted,
-      creatorId: community.creatorId.toString(),
-      createTime: community.createTime,
-      updateTime: community.updateTime,
+      total: all.length,
+      active: all.filter(c => c.status === 1).length,
+      disabled: all.filter(c => c.status === 0).length,
     };
   }
 }

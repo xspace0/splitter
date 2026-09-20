@@ -28,10 +28,15 @@ export default {
     };
   },
   onLoad() {
-    // 已登录直接跳转
+    // 已登录直接跳转（未认证跳我的，已认证跳地图）
     const token = uni.getStorageSync('token');
     if (token) {
-      uni.switchTab({ url: '/pages/map/map' });
+      const profile = uni.getStorageSync('profile') || {};
+      if (profile.realNameVerified) {
+        uni.switchTab({ url: '/pages/map/map' });
+      } else {
+        uni.switchTab({ url: '/pages/profile/profile' });
+      }
     }
   },
   methods: {
@@ -56,7 +61,12 @@ export default {
         uni.setStorageSync('profile', res.data.user);
         uni.showToast({ title: '登录成功', icon: 'success' });
         setTimeout(() => {
-          uni.switchTab({ url: '/pages/map/map' });
+          // 未实名认证跳我的页面，已认证跳地图
+          if (res.data.user && res.data.user.realNameVerified) {
+            uni.switchTab({ url: '/pages/map/map' });
+          } else {
+            uni.switchTab({ url: '/pages/profile/profile' });
+          }
         }, 800);
       } catch (e) {
         this.logging = false;

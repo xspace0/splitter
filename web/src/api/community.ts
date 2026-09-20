@@ -35,7 +35,8 @@ export function updateCommunity(id: string, data: { communityName?: string; rema
 }
 
 export function updateCommunityStatus(id: string, status: number) {
-  return request.put(`/communities/${id}/status`, { status }) as Promise<{ code: number; data: CommunityItem }>;
+  const action = status === 1 ? 'enable' : 'disable';
+  return request.post(`/communities/${id}/${action}`) as Promise<{ code: number; data: CommunityItem }>;
 }
 
 export function deleteCommunity(id: string) {

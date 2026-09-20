@@ -7,29 +7,29 @@
       </div>
       <nav class="sidebar-nav">
         <div class="menu-group">业务管理</div>
-        <RouterLink to="/" class="menu-item" active-class="active" :class="{ active: route.path === '/' }">
+        <RouterLink v-if="canAccess('home')" to="/" class="menu-item" active-class="active" :class="{ active: route.path === '/' }">
           <span class="menu-icon">🏠</span> 概览
         </RouterLink>
-        <RouterLink to="/splitters" class="menu-item" active-class="active">
+        <RouterLink v-if="canAccess('splitters')" to="/splitters" class="menu-item" active-class="active">
           <span class="menu-icon">📊</span> 分光器列表
         </RouterLink>
-        <RouterLink to="/map" class="menu-item" active-class="active">
+        <RouterLink v-if="canAccess('map')" to="/map" class="menu-item" active-class="active">
           <span class="menu-icon">🗺️</span> 地图查看
         </RouterLink>
-        <div class="menu-group">系统管理</div>
-        <RouterLink to="/communities" class="menu-item" active-class="active">
+        <div v-if="canAccess('communities') || canAccess('users') || canAccess('permissions') || canAccess('logs') || canAccess('regions')" class="menu-group">系统管理</div>
+        <RouterLink v-if="canAccess('communities')" to="/communities" class="menu-item" active-class="active">
           <span class="menu-icon">🏘️</span> 社区管理
         </RouterLink>
-        <RouterLink to="/users" class="menu-item" active-class="active">
+        <RouterLink v-if="canAccess('users')" to="/users" class="menu-item" active-class="active">
           <span class="menu-icon">👥</span> 用户管理
         </RouterLink>
-        <RouterLink to="/permissions" class="menu-item" active-class="active">
+        <RouterLink v-if="canAccess('permissions')" to="/permissions" class="menu-item" active-class="active">
           <span class="menu-icon">🔐</span> 权限分配
         </RouterLink>
-        <RouterLink to="/logs" class="menu-item" active-class="active">
+        <RouterLink v-if="canAccess('logs')" to="/logs" class="menu-item" active-class="active">
           <span class="menu-icon">📋</span> 操作日志
         </RouterLink>
-        <RouterLink to="/regions" class="menu-item" active-class="active">
+        <RouterLink v-if="canAccess('regions')" to="/regions" class="menu-item" active-class="active">
           <span class="menu-icon">🗺️</span> 行政区划
         </RouterLink>
         <div class="menu-group">个人</div>
@@ -57,7 +57,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter, RouterLink, RouterView } from 'vue-router';
 import { getProfile, type ProfileResult } from '@/api/auth';
-import { removeToken, getToken } from '@/utils/auth';
+import { removeToken, setProfileCache, clearAuth } from '@/utils/auth';
 
 const route = useRoute();
 const router = useRouter();
@@ -70,6 +70,25 @@ const roleMap: Record<string, { label: string; level: number }> = {
   OPERATOR: { label: '操作员', level: 4 },
   VIEWER: { label: '查看者', level: 5 },
 };
+
+// 菜单权限配置
+const MENU_ROLES: Record<string, string[]> = {
+  home: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER'],
+  splitters: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN', 'OPERATOR'],
+  map: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER'],
+  communities: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN'],
+  users: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN'],
+  permissions: ['SUPER_ADMIN', 'ADMIN'],
+  logs: ['SUPER_ADMIN'],
+  regions: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN'],
+  profile: ['SUPER_ADMIN', 'REGION_ADMIN', 'ADMIN', 'OPERATOR', 'VIEWER'],
+};
+
+function canAccess(menuKey: string): boolean {
+  if (!profile.value) return false;
+  const allowed = MENU_ROLES[menuKey];
+  return allowed ? allowed.includes(profile.value.roleType) : false;
+}
 
 const roleLabel = computed(() => {
   if (!profile.value) return '';
@@ -87,18 +106,28 @@ async function loadProfile() {
   try {
     const res = await getProfile();
     profile.value = res.data;
+    // 写入缓存供路由守卫使用
+    setProfileCache({
+      id: res.data.id,
+      account: res.data.account || '',
+      username: res.data.username,
+      roleType: res.data.roleType,
+      realNameVerified: res.data.realNameVerified,
+      regionId: res.data.regionId || '',
+    });
   } catch {
     profile.value = null;
   }
 }
 
 function handleLogout() {
-  removeToken();
+  clearAuth();
   router.push('/login');
 }
 
 onMounted(() => {
-  if (!getToken()) {
+  const token = localStorage.getItem('splitter_token');
+  if (!token) {
     router.push('/login');
     return;
   }

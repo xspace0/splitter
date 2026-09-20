@@ -60,7 +60,7 @@
       </div>
       <div class="form-group">
         <label>新密码</label>
-        <input v-model="passwordForm.newPassword" type="password" class="form-input" placeholder="请输入新密码（至少6位）" />
+        <input v-model="passwordForm.newPassword" type="password" class="form-input" placeholder="请输入新密码（至少8位，含字母与数字）" />
       </div>
       <div class="form-group">
         <label>确认新密码</label>
@@ -149,7 +149,11 @@ async function handleSaveProfile() {
 
 async function handleChangePassword() {
   if (!passwordForm.oldPassword) { alert('请输入原密码'); return; }
-  if (passwordForm.newPassword.length < 6) { alert('新密码至少6位'); return; }
+  if (passwordForm.newPassword.length < 8) { alert('新密码至少8位'); return; }
+  if (!/[A-Za-z]/.test(passwordForm.newPassword) || !/\d/.test(passwordForm.newPassword)) {
+    alert('新密码需同时包含字母与数字');
+    return;
+  }
   if (passwordForm.newPassword !== passwordForm.confirmPassword) { alert('两次密码输入不一致'); return; }
   changingPassword.value = true;
   try {

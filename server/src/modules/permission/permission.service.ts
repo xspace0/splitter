@@ -3,6 +3,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -75,6 +76,47 @@ export class PermissionService {
       }
     }
 
+    // 社区归属唯一：同一社区有效状态下只能归属一个操作员（文档 3.1 / 数据库设计 3.4）
+    // 已归属他人时需显式指定 force，执行「改派」（原记录置 0，再分配给新用户）
+    const takenCommunityIds: bigint[] = [];
+    for (const communityId of dto.communityIds) {
+      const owner = await this.prisma.sysUserCommunity.findFirst({
+        where: {
+          communityId: BigInt(communityId),
+          userId: { not: targetUserId },
+          status: ASSIGN_STATUS_ACTIVE,
+          isDeleted: 0,
+        },
+        orderBy: { createTime: 'asc' },
+      });
+      if (owner) takenCommunityIds.push(BigInt(communityId));
+    }
+
+    if (takenCommunityIds.length > 0 && !dto.force) {
+      const names = takenCommunityIds.map((cid) => {
+        const c = communities.find((x) => x.id === cid);
+        return c?.communityName ?? cid.toString();
+      });
+      throw new ConflictException(
+        `以下社区已归属其他操作员，如需改派请传入 force=true：${names.join('、')}`,
+      );
+    }
+
+    // 改派：先把这些社区的原有有效归属置为已移除
+    let reassignedCount = 0;
+    if (takenCommunityIds.length > 0) {
+      const result = await this.prisma.sysUserCommunity.updateMany({
+        where: {
+          communityId: { in: takenCommunityIds },
+          userId: { not: targetUserId },
+          status: ASSIGN_STATUS_ACTIVE,
+          isDeleted: 0,
+        },
+        data: { status: ASSIGN_STATUS_REMOVED },
+      });
+      reassignedCount = result.count;
+    }
+
     // 查找已有关联，更新或新建
     const results: { communityId: string; action: string }[] = [];
 
@@ -115,16 +157,17 @@ export class PermissionService {
       `Permissions assigned: user ${targetUser.account} -> ${dto.communityIds.length} communities by ${currentUser.account}`,
     );
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'ASSIGN_PERMISSION',
+      operationType: '权限分配',
       targetType: '权限',
       targetId: targetUserId,
       operationContent: `分配社区权限给操作员 ${targetUser.username}(${targetUser.account})，共${dto.communityIds.length}个社区`,
     });
 
     return {
-      message: '权限分配成功',
+      message: takenCommunityIds.length > 0 ? '权限分配成功（含改派）' : '权限分配成功',
+      reassigned: reassignedCount,
       details: results,
     };
   }
@@ -159,9 +202,9 @@ export class PermissionService {
       `Permissions removed: user ${targetUser.account} <- ${dto.communityIds.length} communities by ${currentUser.account} (${result.count} updated)`,
     );
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'REMOVE_PERMISSION',
+      operationType: '权限分配',
       targetType: '权限',
       targetId: targetUserId,
       operationContent: `移除操作员 ${targetUser.username}(${targetUser.account}) 的${result.count}个社区权限`,
@@ -193,7 +236,7 @@ export class PermissionService {
     }
 
     const assignments = await this.prisma.sysUserCommunity.findMany({
-      where: { userId: targetUserId, isDeleted: 0 },
+      where: { userId: targetUserId, isDeleted: 0, status: 1 },
       orderBy: { createTime: 'desc' },
     });
 
@@ -264,7 +307,7 @@ export class PermissionService {
     }
 
     const assignments = await this.prisma.sysUserCommunity.findMany({
-      where: { communityId: cid, isDeleted: 0 },
+      where: { communityId: cid, isDeleted: 0, status: 1 },
       orderBy: { createTime: 'desc' },
     });
 
@@ -393,9 +436,9 @@ export class PermissionService {
   }
 
   private checkReadPermission(currentUser: RequestUser) {
+    // 只有超管和管理员可查看权限分配
     const allowed = [
       RoleType.SUPER_ADMIN,
-      RoleType.REGION_ADMIN,
       RoleType.ADMIN,
     ];
     if (!allowed.includes(currentUser.roleType as RoleType)) {
@@ -404,9 +447,9 @@ export class PermissionService {
   }
 
   private checkWritePermission(currentUser: RequestUser) {
+    // 只有超管和管理员可分配权限，区域管理员无此权限
     const allowed = [
       RoleType.SUPER_ADMIN,
-      RoleType.REGION_ADMIN,
       RoleType.ADMIN,
     ];
     if (!allowed.includes(currentUser.roleType as RoleType)) {

@@ -30,9 +30,17 @@ export class InitService implements OnApplicationBootstrap {
       return;
     }
 
-    const password =
-      this.config.get<string>('SUPER_ADMIN_PASSWORD') || 'admin123';
-    const passwordHash = await bcrypt.hash(password, 10);
+    const configured = this.config.get<string>('SUPER_ADMIN_PASSWORD');
+    const usingDefault = !configured;
+    const password = configured || 'admin123';
+    // bcrypt cost=12，与文档《数据库设计》3.1 password_hash 约定一致
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    if (usingDefault) {
+      this.logger.warn(
+        '未配置 SUPER_ADMIN_PASSWORD，已使用默认密码初始化超级管理员，请登录后立即修改！',
+      );
+    }
 
     await this.prisma.sysUser.create({
       data: {
@@ -40,9 +48,11 @@ export class InitService implements OnApplicationBootstrap {
         account: 'admin',
         passwordHash,
         realNameVerified: 1,
+        realNameAuthTime: new Date(),
         roleType: 'SUPER_ADMIN',
         status: 1,
-        creatorId: 0n,
+        // seed 创建的首个超级管理员无上级创建人，文档明确为合法例外（应为 NULL，而非 0）
+        creatorId: null,
       },
     });
 

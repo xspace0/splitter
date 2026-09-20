@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="login-container">
     <div class="login-card">
       <h1 class="title">分光器资源管理系统</h1>
@@ -24,7 +24,7 @@
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { login } from '@/api/auth';
-import { setToken } from '@/utils/auth';
+import { setToken, setProfileCache } from '@/utils/auth';
 
 const router = useRouter();
 const loading = ref(false);
@@ -41,6 +41,14 @@ async function handleLogin() {
   try {
     const res = await login({ account: form.account, password: form.password });
     setToken(res.data.token);
+    setProfileCache({
+      id: res.data.user.id,
+      account: res.data.user.account || '',
+      username: res.data.user.username,
+      roleType: res.data.user.roleType,
+      realNameVerified: res.data.user.realNameVerified,
+      regionId: res.data.user.regionId || '',
+    });
     router.push('/');
   } catch (e: any) {
     const msg = e.response?.data?.message;

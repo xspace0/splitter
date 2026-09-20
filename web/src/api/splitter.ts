@@ -6,6 +6,8 @@ export interface SplitterItem {
   communityId: string;
   splitterLevel: number;
   parentId: string | null;
+  parentName?: string | null;
+  parentLevel?: number | null;
   splitRatio: string | null;
   installLocation: string | null;
   longitude: string | null;
@@ -88,8 +90,8 @@ export function updateSplitter(
   return request.put(`/splitters/${id}`, data) as Promise<{ code: number; data: SplitterItem }>;
 }
 
-export function updateSplitterStatus(id: string, status: number) {
-  return request.put(`/splitters/${id}/status`, { status }) as Promise<{ code: number; data: SplitterItem }>;
+export function updateSplitterStatus(id: string, status: number, faultType?: number) {
+  return request.post(`/splitters/${id}/status`, { status, faultType }) as Promise<{ code: number; data: SplitterItem }>;
 }
 
 export function deleteSplitter(id: string) {

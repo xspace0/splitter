@@ -51,25 +51,15 @@ export class UserService {
       throw new ConflictException('账号已存在');
     }
 
-    this.validateRolePermission(
-      currentUser.roleType,
-      dto.roleType,
-    );
+    this.validateRolePermission(currentUser.roleType, dto.roleType);
 
-    if (getRoleLevel(dto.roleType) <= getRoleLevel(RoleType.OPERATOR)) {
-      const targetRegionId = dto.regionId ? BigInt(dto.regionId) : null;
-      const myRegionId = await this.getUserRegionId(currentUser.id);
-      if (currentUser.roleType !== RoleType.SUPER_ADMIN && targetRegionId !== myRegionId) {
-        throw new ForbiddenException('只能为本区域用户分配角色');
-      }
-    }
+    // 区县归属：非超管只能在本管辖范围内创建账号（区域管理员按其下区县判定）
+    await this.validateSameRegion(currentUser, dto.regionId ? BigInt(dto.regionId) : null);
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
 
-    const isPcCreatedByAdmin =
-      currentUser.roleType === RoleType.SUPER_ADMIN ||
-      currentUser.roleType === RoleType.REGION_ADMIN;
-    const realNameVerified = isPcCreatedByAdmin ? 1 : 0;
+    // PC 端账号由管理员创建时录入姓名与身份证号，视为「创建即认证」（文档 2.1 / 4.1）
+    const realNameVerified = 1;
 
     const user = await this.prisma.sysUser.create({
       data: {
@@ -88,9 +78,9 @@ export class UserService {
 
     this.logger.log(`User created: ${user.account} (role=${user.roleType}) by ${currentUser.account}`);
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'CREATE',
+      operationType: '新增',
       targetType: '用户',
       targetId: user.id,
       operationContent: `新增用户 ${user.username}(${user.account})，角色：${user.roleType}`,
@@ -120,11 +110,17 @@ export class UserService {
 
     if (currentUser.roleType !== RoleType.SUPER_ADMIN) {
       const myRegionId = await this.getUserRegionId(currentUser.id);
-      if (currentUser.roleType === RoleType.REGION_ADMIN) {
-        where.regionId = myRegionId;
-      } else {
-        where.regionId = myRegionId;
+      if (myRegionId === null) {
+        throw new ForbiddenException('当前账号未绑定所属区县，无法查询用户列表');
+      }
+      where.regionId = myRegionId;
+      // 区域管理员可管理本区域管理员与查看者；管理员仅可管理本区县操作员与查看者
+      if (currentUser.roleType === RoleType.ADMIN) {
         where.roleType = { in: [RoleType.OPERATOR, RoleType.VIEWER] };
+      } else if (currentUser.roleType === RoleType.REGION_ADMIN) {
+        where.roleType = {
+          in: [RoleType.ADMIN, RoleType.OPERATOR, RoleType.VIEWER],
+        };
       }
     } else if (query.regionId) {
       where.regionId = BigInt(query.regionId);
@@ -158,6 +154,7 @@ export class UserService {
     }
 
     this.validateDataAccess(currentUser.roleType, user.roleType);
+    await this.validateSameRegion(currentUser, user.regionId);
 
     return this.formatUser(user);
   }
@@ -172,6 +169,7 @@ export class UserService {
     }
 
     this.validateDataAccess(currentUser.roleType, user.roleType);
+    await this.validateSameRegion(currentUser, user.regionId);
 
     const data: { username?: string; phone?: string | null; idCardNo?: string | null } = {};
     if (dto.username !== undefined) data.username = dto.username;
@@ -183,9 +181,9 @@ export class UserService {
       data,
     });
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'UPDATE',
+      operationType: '修改',
       targetType: '用户',
       targetId: BigInt(id),
       operationContent: `修改用户信息 ${user.username}(${user.account})`,
@@ -204,6 +202,11 @@ export class UserService {
     }
 
     this.validateRolePermission(currentUser.roleType, user.roleType);
+    await this.validateSameRegion(currentUser, user.regionId);
+
+    if (user.id.toString() === currentUser.id) {
+      throw new ForbiddenException('不能修改自己的账号状态');
+    }
 
     const updated = await this.prisma.sysUser.update({
       where: { id: BigInt(id) },
@@ -212,9 +215,9 @@ export class UserService {
 
     this.logger.log(`User ${user.account} status=${status} by ${currentUser.account}`);
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: status === 1 ? 'ENABLE' : 'DISABLE',
+      operationType: status === 1 ? '启用' : '禁用',
       targetType: '用户',
       targetId: BigInt(id),
       operationContent: `${status === 1 ? '启用' : '禁用'}用户 ${user.username}(${user.account})`,
@@ -233,6 +236,11 @@ export class UserService {
     }
 
     this.validateRolePermission(currentUser.roleType, user.roleType);
+    await this.validateSameRegion(currentUser, user.regionId);
+
+    if (user.id.toString() === currentUser.id) {
+      throw new ForbiddenException('请通过个人中心修改自己的密码');
+    }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
@@ -243,9 +251,9 @@ export class UserService {
 
     this.logger.log(`Password reset for ${user.account} by ${currentUser.account}`);
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'UPDATE',
+      operationType: '修改',
       targetType: '用户',
       targetId: BigInt(id),
       operationContent: `重置用户 ${user.username}(${user.account}) 密码`,
@@ -264,6 +272,11 @@ export class UserService {
     }
 
     this.validateRoleChange(currentUser.roleType, user.roleType, newRole);
+    await this.validateSameRegion(currentUser, user.regionId);
+
+    if (user.id.toString() === currentUser.id) {
+      throw new ForbiddenException('不能修改自己的角色');
+    }
 
     if (getRoleLevel(newRole) <= getRoleLevel(RoleType.OPERATOR) && !user.realNameVerified) {
       throw new BadRequestException('目标用户尚未完成实名认证，无法提升至操作员及以上角色');
@@ -278,17 +291,67 @@ export class UserService {
       `User ${user.account} role ${user.roleType} -> ${newRole} by ${currentUser.account}`,
     );
 
-    this.logService.log({
+    await this.logService.log({
       userId: BigInt(currentUser.id),
-      operationType: 'ROLE_CHANGE',
+      operationType: '角色变更',
       targetType: '用户',
       targetId: BigInt(id),
-      operationContent: `${user.username}(${user.account}) 角色变更：${user.roleType} → ${newRole}`,
+      operationContent: `${user.username}(${user.account}) 角色变更：${user.roleType} -> ${newRole}`,
     });
 
     return this.formatUser(updated);
   }
 
+  /**
+   * 区县归属校验：非超级管理员只能操作自己管辖范围内的账号。
+   * 区域管理员按「市」级节点下辖的区县判定，管理员按本区县判定。
+   * 仅校验角色层级不足以防止通过遍历自增 id 跨区县越权。
+   */
+  private async validateSameRegion(
+    currentUser: RequestUser,
+    targetRegionId: bigint | null,
+  ): Promise<void> {
+    if (currentUser.roleType === RoleType.SUPER_ADMIN) return;
+
+    const myRegionId = await this.getUserRegionId(currentUser.id);
+
+    if (myRegionId === null) {
+      throw new ForbiddenException('当前账号未绑定所属区县，无法执行该操作');
+    }
+    if (targetRegionId === null) {
+      throw new ForbiddenException('目标账号未绑定区县，无法跨范围操作');
+    }
+    if (targetRegionId === myRegionId) return;
+
+    if (currentUser.roleType === RoleType.REGION_ADMIN) {
+      // 区域管理员绑定市级节点：沿目标区县的祖先链上溯，命中本区域即放行
+      let cursor: bigint | null = targetRegionId;
+      const visited = new Set<string>();
+      for (let depth = 0; depth < 4 && cursor !== null; depth++) {
+        const key = cursor.toString();
+        if (visited.has(key)) break;
+        visited.add(key);
+
+        const region: { parentId: bigint | null } | null =
+          await this.prisma.sysRegion.findUnique({
+            where: { id: cursor },
+            select: { parentId: true },
+          });
+        if (!region) break;
+        if (region.parentId === myRegionId) return;
+        cursor = region.parentId;
+      }
+    }
+
+    throw new ForbiddenException('只能管理本管辖范围内的账号');
+  }
+
+  /**
+   * 写操作的角色层级校验：
+   * - 超管：无限制
+   * - 区域管理员：不能操作超管/区域管理员（区域管理员仅由超管创建与管理）
+   * - 管理员：不能操作管理员及以上
+   */
   private validateRolePermission(
     operatorRole: string,
     targetRole: string,
@@ -296,7 +359,10 @@ export class UserService {
     if (operatorRole === RoleType.SUPER_ADMIN) return;
 
     if (operatorRole === RoleType.REGION_ADMIN) {
-      if (targetRole === RoleType.SUPER_ADMIN || targetRole === RoleType.REGION_ADMIN) {
+      if (
+        targetRole === RoleType.SUPER_ADMIN ||
+        targetRole === RoleType.REGION_ADMIN
+      ) {
         throw new ForbiddenException('区域管理员无权操作超级管理员或区域管理员账号');
       }
     } else if (operatorRole === RoleType.ADMIN) {
@@ -306,6 +372,27 @@ export class UserService {
     } else {
       throw new ForbiddenException('无权限执行此操作');
     }
+  }
+
+  /**
+   * 只读操作的角色层级校验：
+   * 区域管理员需要看到本区域内管理员列表（文档 3.1「可见管理员账号列表」），
+   * 因此只读场景允许其查看管理员账号。
+   */
+  private validateRoleVisibility(
+    operatorRole: string,
+    targetRole: string,
+  ) {
+    if (operatorRole === RoleType.SUPER_ADMIN) return;
+
+    if (operatorRole === RoleType.REGION_ADMIN) {
+      if (targetRole === RoleType.SUPER_ADMIN) {
+        throw new ForbiddenException('区域管理员无权查看超级管理员账号');
+      }
+      return;
+    }
+
+    this.validateRolePermission(operatorRole, targetRole);
   }
 
   private validateRoleChange(
@@ -333,9 +420,7 @@ export class UserService {
     operatorRole: string,
     targetRole: string,
   ) {
-    if (operatorRole === RoleType.SUPER_ADMIN) return;
-
-    this.validateRolePermission(operatorRole, targetRole);
+    this.validateRoleVisibility(operatorRole, targetRole);
   }
 
   private async getUserRegionId(userId: string): Promise<bigint | null> {

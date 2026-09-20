@@ -117,17 +117,24 @@ export default {
     },
   },
   onLoad() {
+    // 查看者无权限新增
+    const profile = uni.getStorageSync('profile') || {};
+    if (profile.roleType === 'VIEWER') {
+      uni.showToast({ title: '您无权限新增设备', icon: 'none' });
+      setTimeout(() => uni.navigateBack(), 800);
+      return;
+    }
     this.loadCommunities();
     this.getLocation();
   },
   methods: {
     async loadCommunities() {
       try {
-        const res = await this.$api.community.getCommunities({ page: 1, pageSize: 100 });
-        this.communities = res.data.list;
+        const res = await this.$api.community.getMyCommunities();
+        this.communities = res.data.list || res.data || [];
         this.communityOptions = [
           { value: '', label: '请选择社区' },
-          ...res.data.list.filter(c => c.status === 1).map(c => ({ value: c.id, label: c.communityName })),
+          ...this.communities.filter(c => c.status === 1).map(c => ({ value: c.id, label: c.communityName })),
         ];
       } catch (e) { console.error(e); }
     },

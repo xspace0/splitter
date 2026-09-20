@@ -68,25 +68,23 @@ export default {
       if (!append) this.page = 1;
       this.loading = true;
       try {
-        // 调用权限接口查询当前用户已分配的社区
-        const userId = uni.getStorageSync('profile')?.id;
-        if (!userId) {
-          this.list = [];
-          this.total = 0;
-          return;
+        const res = await this.$api.community.getMyCommunities();
+        const list = res.data.list || res.data || [];
+        // 前端搜索过滤
+        let filtered = list;
+        if (this.keyword) {
+          const kw = this.keyword.toLowerCase();
+          filtered = list.filter(c => (c.communityName || '').toLowerCase().includes(kw));
         }
-        const res = await this.$api.community.getCommunities({
-          page: this.page,
-          pageSize: this.pageSize,
-          keyword: this.keyword || undefined,
-        });
-        // 后端后续可加 myCommunities 接口，这里先用全部社区模拟
+        this.total = filtered.length;
+        const start = (this.page - 1) * this.pageSize;
+        const end = start + this.pageSize;
+        const pageData = filtered.slice(start, end);
         if (append) {
-          this.list = [...this.list, ...res.data.list];
+          this.list = [...this.list, ...pageData];
         } else {
-          this.list = res.data.list;
+          this.list = pageData;
         }
-        this.total = res.data.total;
       } catch (e) {
         console.error(e);
       } finally {

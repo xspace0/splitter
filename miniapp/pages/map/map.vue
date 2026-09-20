@@ -46,12 +46,13 @@
         <view v-if="selectedMarker.faultType && selectedMarker.status === 2" class="info-row"><text class="info-label">故障类型</text><text class="info-value fault-text">{{ faultTypeName(selectedMarker.faultType) }}</text></view>
       </view>
       <view class="card-actions">
-        <button v-if="selectedMarker.status === 1" class="btn btn-fault" @click="reportFault">故障上报</button>
-        <button v-if="selectedMarker.status === 2" class="btn btn-primary" @click="recoverFault">故障恢复</button>
+        <button v-if="!isViewer && selectedMarker.status === 1" class="btn btn-fault" @click="reportFault">故障上报</button>
+        <button v-if="!isViewer && selectedMarker.status === 2" class="btn btn-primary" @click="recoverFault">故障恢复</button>
       </view>
     </view>
 
     <view v-if="filteredMarkers.length === 0 && !loading" class="empty-tip">暂无设备数据</view>
+    <custom-tabbar current="pages/map/map" :placeholder="false" />
   </view>
 </template>
 
@@ -80,6 +81,10 @@ export default {
     };
   },
   computed: {
+    isViewer() {
+      const profile = uni.getStorageSync('profile') || {};
+      return profile.roleType === 'VIEWER';
+    },
     filteredMarkers() {
       return this.markers.filter(m => {
         if (this.filterCommunity && m.communityId !== this.filterCommunity) return false;
@@ -91,24 +96,27 @@ export default {
     mapMarkers() {
       return this.filteredMarkers.map((m, i) => {
         const pos = this.getPosition(m);
+        const levelStyle = this.getLevelStyle(m.splitterLevel, m.status);
         return {
           id: i + 1, // map组件marker id必须是数字
           _itemId: m.id, // 原始id存到自定义字段
           latitude: pos.lat,
           longitude: pos.lng,
-          width: 30,
-          height: 30,
+          width: 20,
+          height: 20,
           callout: {
-            content: m.splitterName,
-            color: m.status === 2 ? '#ff4d4f' : '#333333',
-            fontSize: 10,
+            content: levelStyle.symbol + ' ' + m.splitterName,
+            color: levelStyle.color,
+            fontSize: 11,
             borderRadius: 4,
-            bgColor: '#ffffff',
+            bgColor: m.status === 2 ? '#fff1f0' : '#ffffff',
             padding: 4,
-            display: 'BYCLICK',
+            display: 'ALWAYS',
             textAlign: 'center',
+            borderWidth: m.status === 2 ? 1 : 0,
+            borderColor: '#ff4d4f',
           },
-          // 用iconPath自定义图标
+          // 用不同颜色的自定义图标
           iconPath: this.getMarkerIcon(m),
         };
       });
@@ -167,11 +175,11 @@ export default {
   methods: {
     async loadCommunities() {
       try {
-        const res = await this.$api.community.getCommunities({ page: 1, pageSize: 100 });
-        this.communities = res.data.list;
+        const res = await this.$api.community.getMapCommunityOptions();
+        this.communities = res.data.list || [];
         this.communityOptions = [
           { value: '', label: '全部社区' },
-          ...res.data.list.map(c => ({ value: c.id, label: c.communityName })),
+          ...this.communities.map(c => ({ value: c.id, label: c.communityName })),
         ];
       } catch (e) { console.error(e); }
     },
@@ -212,11 +220,41 @@ export default {
         lat: 39.85 + (hash % 70) / 500,
       };
     },
-    // 获取marker图标路径（使用默认标记颜色区分）
+    // 获取marker图标路径（使用默认标记，通过callout符号和颜色区分级别）
     getMarkerIcon(item) {
-      // 小程序原生map组件使用系统marker，用颜色区分
-      // 这里返回空字符串，使用默认红色标记，通过callout展示名称
+      // 小程序原生map组件使用系统默认marker
+      // 级别和状态通过callout中的符号和颜色区分
       return '';
+    },
+    // 获取级别样式：符号和颜色
+    getLevelStyle(level, status) {
+      // 故障状态统一红色高亮
+      if (status === 2) {
+        const symbols = { 1: '▲', 2: '●', 3: '●', 4: '◎' };
+        return { symbol: symbols[level] || '●', color: '#ff4d4f' };
+      }
+      // 停用状态半透明灰色
+      if (status === 3) {
+        const symbols = { 1: '▲', 2: '●', 3: '●', 4: '◎' };
+        return { symbol: symbols[level] || '●', color: '#999999' };
+      }
+      // 建设中黄色虚线
+      if (status === 4) {
+        const symbols = { 1: '△', 2: '○', 3: '○', 4: '◯' };
+        return { symbol: symbols[level] || '○', color: '#faad14' };
+      }
+      // 正常状态：按级别区分
+      // 光交（级别1）三角形红色系
+      // 一级分光器（级别2）实心圆形橙色系
+      // 二级分光器（级别3）实心圆形蓝色系
+      // 光缆成端（级别4）空心圆环绿色系
+      const map = {
+        1: { symbol: '▲', color: '#e74c3c' },
+        2: { symbol: '●', color: '#f39c12' },
+        3: { symbol: '●', color: '#3498db' },
+        4: { symbol: '◎', color: '#27ae60' },
+      };
+      return map[level] || { symbol: '●', color: '#333' };
     },
     onMarkerTap(e) {
       const markerId = e.markerId;

@@ -27,7 +27,8 @@ JWT_EXPIRES_IN=7d
 FRONTEND_PORT=8081
 FRONTEND_IMAGE=ghcr.io/xspace0/splitter-frontend
 FRONTEND_SHA=latest
-API_BASE_URL=http://1.92.79.114:3001
+API_BASE_URL=/api
+API_UPSTREAM=http://backend-test:3000
 ENDOFFILE
 
 cat > /opt/splitter/.env.prod << ENDOFFILE
@@ -49,7 +50,8 @@ JWT_EXPIRES_IN=7d
 FRONTEND_PORT=8082
 FRONTEND_IMAGE=ghcr.io/xspace0/splitter-frontend
 FRONTEND_SHA=latest
-API_BASE_URL=http://1.92.79.114:3002
+API_BASE_URL=/api
+API_UPSTREAM=http://backend-prod:3000
 ENDOFFILE
 
 chmod 600 /opt/splitter-test/.env.test /opt/splitter/.env.prod

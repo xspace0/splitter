@@ -45,7 +45,7 @@
           </view>
         </view>
         <view class="card-footer">
-          <button v-if="item.status === 2" class="btn btn-recover" @click="recover(item)">故障恢复</button>
+          <button v-if="!isViewer && item.status === 2" class="btn btn-recover" @click="recover(item)">故障恢复</button>
           <button v-else class="btn btn-detail" @click="viewDetail(item)">查看详情</button>
         </view>
       </view>
@@ -61,8 +61,15 @@
 
 <script>
 export default {
+  computed: {
+    isViewer() {
+      const profile = uni.getStorageSync('profile') || {};
+      return profile.roleType === 'VIEWER';
+    },
+  },
   data() {
     return {
+      allFaultItems: [], // 全量故障相关设备
       list: [],
       total: 0,
       page: 1,
@@ -73,50 +80,59 @@ export default {
     };
   },
   onLoad() {
-    this.loadList();
+    this.loadAll();
   },
   onReachBottom() {
     if (this.list.length < this.total) {
       this.page++;
-      this.loadList(true);
+      this.loadPage();
     }
   },
   methods: {
     setStatus(status) {
       this.filterStatus = status;
       this.page = 1;
-      this.loadList();
+      this.loadPage();
     },
-    async loadList(append = false) {
-      if (!append) this.page = 1;
+    async loadAll() {
       this.loading = true;
       try {
-        const params = {
-          page: this.page,
-          pageSize: this.pageSize,
-        };
-        if (this.filterStatus !== '') params.status = this.filterStatus;
-        const res = await this.$api.splitter.getSplitters(params);
-        // 筛选故障和已恢复的（简化：故障状态=2的，以及有过故障记录的）
-        const faultItems = res.data.list.filter(s => s.status === 2 || s.faultType);
-        if (append) {
-          this.list = [...this.list, ...faultItems];
-        } else {
-          this.list = faultItems;
-        }
-        this.total = res.data.total;
+        // 一次性拉取全量设备，前端筛选故障相关记录
+        const res = await this.$api.splitter.getSplitters({ page: 1, pageSize: 500 });
+        const all = res.data.list || [];
+        // 筛选：故障中(status=2) 或 有过故障记录(faultType有值且status=1表示已恢复)
+        this.allFaultItems = all.filter(s => s.status === 2 || (s.status === 1 && s.faultType));
         // 计算统计
-        const all = res.data.list;
-        this.counts.total = all.length;
-        this.counts.fault = all.filter(s => s.status === 2).length;
-        this.counts.recovered = all.filter(s => s.status === 1 && s.faultType).length;
+        this.counts.total = this.allFaultItems.length;
+        this.counts.fault = this.allFaultItems.filter(s => s.status === 2).length;
+        this.counts.recovered = this.allFaultItems.filter(s => s.status === 1).length;
+        this.loadPage();
       } catch (e) {
         console.error(e);
       } finally {
         this.loading = false;
       }
     },
+    loadPage() {
+      // 从全量数据中按筛选条件和分页取出当前页数据
+      let filtered = this.allFaultItems;
+      if (this.filterStatus === '2') {
+        filtered = filtered.filter(s => s.status === 2);
+      } else if (this.filterStatus === '1') {
+        filtered = filtered.filter(s => s.status === 1);
+      }
+      this.total = filtered.length;
+      const start = (this.page - 1) * this.pageSize;
+      const end = start + this.pageSize;
+      const pageData = filtered.slice(start, end);
+      if (this.page === 1) {
+        this.list = pageData;
+      } else {
+        this.list = [...this.list, ...pageData];
+      }
+    },
     statusName(status) {
+      // 故障记录页中，状态1表示已恢复，状态2表示故障中
       const map = { 1: '已恢复', 2: '故障中', 3: '停用', 4: '建设中' };
       return map[status] || '未知';
     },
@@ -147,7 +163,8 @@ export default {
             try {
               await this.$api.splitter.recoverFault(item.id);
               uni.showToast({ title: '恢复成功', icon: 'success' });
-              this.loadList();
+              this.page = 1;
+              this.loadAll();
             } catch (e) {}
           }
         },

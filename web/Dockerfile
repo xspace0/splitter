@@ -19,11 +19,9 @@ RUN apk add --no-cache gettext
 # 拷贝构建产物到 nginx 默认目录
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# 拷贝运行时配置模板（容器启动时被 entrypoint.sh 替换为真实值）
+# 拷贝运行时配置模板（容器启动时由 entrypoint.sh 替换为真实值）
 COPY public/config.template.js /usr/share/nginx/html/config.template.js
-
-# 拷贝 nginx 配置
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # 拷贝启动脚本
 COPY entrypoint.sh /entrypoint.sh
