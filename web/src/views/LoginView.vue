@@ -49,7 +49,8 @@ async function handleLogin() {
       realNameVerified: res.data.user.realNameVerified,
       regionId: res.data.user.regionId || '',
     });
-    router.push('/');
+    // 文档 4.6.1 / 5.2：已实名认证用户登录后默认进入地图页面
+    router.push(res.data.user.realNameVerified ? '/map' : '/profile');
   } catch (e: any) {
     const msg = e.response?.data?.message;
     error.value = msg || '登录失败，请重试';

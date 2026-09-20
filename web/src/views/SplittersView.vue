@@ -180,7 +180,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, h, watch } from 'vue';
-import { getCommunities, type CommunityItem } from '@/api/community';
+import type { CommunityItem } from '@/api/community';
+import { loadCommunityOptions } from '@/utils/communityOptions';
 import {
   getSplitterTree, getSplitters, createSplitter, updateSplitter, updateSplitterStatus, deleteSplitter,
   type SplitterTreeItem, type SplitterItem,
@@ -304,10 +305,8 @@ function resetFilters() {
 }
 
 async function loadCommunities() {
-  try {
-    const res = await getCommunities({ page: 1, pageSize: 100 });
-    communities.value = res.data.list;
-  } catch (e) { console.error('加载社区失败', e); }
+  // 按角色选择正确的接口：查看者/操作员不能调用社区管理接口（会 403）
+  communities.value = (await loadCommunityOptions()) as unknown as CommunityItem[];
 }
 
 async function loadList() {

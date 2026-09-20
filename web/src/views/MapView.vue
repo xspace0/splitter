@@ -95,7 +95,8 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue';
-import { getCommunities, type CommunityItem } from '@/api/community';
+import type { CommunityItem } from '@/api/community';
+import { loadCommunityOptions } from '@/utils/communityOptions';
 import { getSplitters, type SplitterItem } from '@/api/splitter';
 
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || '';
@@ -304,10 +305,9 @@ function createMarkerContent(item: SplitterItem): string {
 }
 
 async function loadCommunities() {
-  try {
-    const res = await getCommunities({ page: 1, pageSize: 100 });
-    communities.value = res.data.list;
-  } catch (e) { console.error('加载社区失败', e); }
+  // 地图页全部角色均可访问，必须按角色选择下拉数据来源：
+  // 查看者/操作员调用社区管理接口 /communities 会得到 403，导致下拉框空白
+  communities.value = (await loadCommunityOptions()) as unknown as CommunityItem[];
 }
 
 async function loadMarkers() {

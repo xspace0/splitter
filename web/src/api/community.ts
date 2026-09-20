@@ -26,6 +26,26 @@ export function getCommunities(params: { page?: number; pageSize?: number; keywo
   return request.get<CommunityListResult>('/communities', { params });
 }
 
+/**
+ * 按角色获取「可用于下拉选择」的社区列表。
+ * 社区管理接口 /communities 仅对超管/区域管理员/管理员开放，
+ * 操作员与查看者必须走各自的专用接口，否则会拿到 403、下拉框空白。
+ */
+export interface CommunityOption {
+  id: string;
+  communityName: string;
+  status: number;
+  regionId?: string;
+}
+
+export function getMyCommunities() {
+  return request.get<{ code: number; data: { list: CommunityOption[]; total: number } }>('/communities/my');
+}
+
+export function getMapCommunityOptions() {
+  return request.get<{ code: number; data: { list: CommunityOption[] } }>('/communities/map-options');
+}
+
 export function createCommunity(data: { communityName: string; remark?: string }) {
   return request.post<{ code: number; data: CommunityItem }>('/communities', data);
 }
