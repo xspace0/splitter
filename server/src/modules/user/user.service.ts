@@ -53,6 +53,17 @@ export class UserService {
 
     this.validateRolePermission(currentUser.roleType, dto.roleType);
 
+    // 区县维度角色必须绑定区县，否则数据权限无法确定
+    // （区域管理员/管理员/查看者的可见范围由 region_id 决定；操作员走社区分配）
+    const REGION_REQUIRED_ROLES: string[] = [
+      RoleType.REGION_ADMIN,
+      RoleType.ADMIN,
+      RoleType.VIEWER,
+    ];
+    if (REGION_REQUIRED_ROLES.includes(dto.roleType) && !dto.regionId) {
+      throw new BadRequestException('创建该角色账号时必须指定所属区县');
+    }
+
     // 区县归属：非超管只能在本管辖范围内创建账号（区域管理员按其下区县判定）
     await this.validateSameRegion(currentUser, dto.regionId ? BigInt(dto.regionId) : null);
 

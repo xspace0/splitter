@@ -3,11 +3,9 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { RoleType } from '@/common/enums/role.enum';
 
 const ERR_TOKEN_INVALID = 1001;
 const ERR_ACCOUNT_OFFLINE = 1002;
-const ERR_REGION_MISSING = 2001;
 
 export interface JwtPayload {
   sub: string;
@@ -25,13 +23,6 @@ export interface RequestUser {
   realNameVerified: number;
   regionId: string;
 }
-
-/** 需要绑定区县才能确定数据范围的角色 */
-const REGION_SCOPED_ROLES: string[] = [
-  RoleType.REGION_ADMIN,
-  RoleType.ADMIN,
-  RoleType.VIEWER,
-];
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
@@ -87,14 +78,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     const roleType = user.roleType as string;
     const regionId = user.regionId?.toString() ?? '';
 
-    // 区县维度角色必须已绑定区县，否则数据范围无法确定，直接要求重新登录
-    if (REGION_SCOPED_ROLES.includes(roleType) && !regionId) {
-      throw new UnauthorizedException({
-        code: ERR_REGION_MISSING,
-        message: '账号未绑定所属区县，请重新登录或联系管理员',
-      });
-    }
-
+    // 说明：区县维度角色（区域管理员/管理员/查看者）若未绑定区县，
+    // 不能在此处直接 401 —— 会导致用户刚登录就被踢回登录页，无法自助处理。
+    // 改为放行登录态，由各业务接口按数据权限返回 403 + 业务码
+    // （3002 无该条数据权限 / 4001 参数错误），错误提示更准确且可自愈。
     return {
       id: user.id.toString(),
       account: user.account ?? '',

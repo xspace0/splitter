@@ -51,3 +51,11 @@ UPDATE sys_user
 SET region_id = (SELECT id FROM sys_region WHERE region_code = '110119')
 WHERE region_id IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM sys_region r WHERE r.id = sys_user.region_id);
+
+-- 区县维度角色（区域管理员/管理员/查看者）必须绑定区县，否则数据权限无法确定。
+-- 历史数据可能为 NULL，这里统一归入上面的区县节点，避免这类账号登录后无法使用数据接口。
+UPDATE sys_user
+SET region_id = (SELECT id FROM sys_region WHERE region_code = '110119')
+WHERE region_id IS NULL
+  AND is_deleted = 0
+  AND role_type IN ('REGION_ADMIN', 'ADMIN', 'VIEWER');
