@@ -1,14 +1,17 @@
 // 分光器资源管理系统 - Prisma Schema
-// 设计原则：无物理外键，逻辑删除，应用层校验
-
+// 设计原则：数据库层不使用物理外键，引用/拓扑/业务完整性全部由应用代码校验。
+//   relationMode = "prisma" 使 @relation 仅存在于 Prisma Client（模拟关联，供 include/select 使用），
+//   不会在 PostgreSQL 中创建 FOREIGN KEY 约束，与文档《数据库设计》1.1 一致。
+// 逻辑删除：业务表统一使用 is_deleted，由应用层过滤。
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "prisma"
 }
 
 // ============ 枚举 ============
@@ -80,6 +83,16 @@ model SysUser {
   createTime        DateTime  @default(now()) @map("create_time")
   updateTime        DateTime  @updatedAt @map("update_time")
 
+  region             SysRegion?          @relation("UserRegion", fields: [regionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  creator            SysUser?            @relation("UserCreator", fields: [creatorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdUsers       SysUser[]           @relation("UserCreator")
+  communities        Community[]         @relation("CommunityCreator")
+  userCommunities    SysUserCommunity[]  @relation("UserCommunityCreator")
+  assignedCommunities SysUserCommunity[] @relation("UserCommunityUser")
+  createdSplitters   OpticalSplitter[]   @relation("SplitterCreator")
+  operatedSplitters  OpticalSplitter[]   @relation("SplitterOperator")
+  operationLogs      SysOperationLog[]   @relation("LogUser")
+
   @@map("sys_user")
 }
 
@@ -96,7 +109,13 @@ model Community {
   createTime    DateTime  @default(now()) @map("create_time")
   updateTime    DateTime  @updatedAt @map("update_time")
 
+  region         SysRegion          @relation("CommunityRegion", fields: [regionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  creator        SysUser            @relation("CommunityCreator", fields: [creatorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  splitters      OpticalSplitter[]  @relation("SplitterCommunity")
+  userCommunities SysUserCommunity[] @relation("UserCommunityCommunity")
+
   @@index([communityName], map: "uk_community_name")
+  @@index([regionId])
   @@map("community")
 }
 
@@ -120,6 +139,12 @@ model OpticalSplitter {
   createTime      DateTime @default(now()) @map("create_time")
   updateTime      DateTime @updatedAt @map("update_time")
 
+  community Community        @relation("SplitterCommunity", fields: [communityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  parent    OpticalSplitter? @relation("SplitterHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  children  OpticalSplitter[] @relation("SplitterHierarchy")
+  creator   SysUser          @relation("SplitterCreator", fields: [creatorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  operator  SysUser          @relation("SplitterOperator", fields: [operatorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
   @@index([splitterName], map: "uk_splitter_name")
   @@index([communityId])
   @@index([parentId])
@@ -139,6 +164,10 @@ model SysUserCommunity {
   createTime  DateTime @default(now()) @map("create_time")
   updateTime  DateTime @updatedAt @map("update_time")
 
+  user      SysUser   @relation("UserCommunityUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  community Community @relation("UserCommunityCommunity", fields: [communityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  creator   SysUser   @relation("UserCommunityCreator", fields: [creatorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
   @@index([userId, communityId])
   @@index([communityId])
   @@map("sys_user_community")
@@ -151,6 +180,11 @@ model SysRegion {
   parentId    BigInt?     @map("parent_id")
   regionLevel RegionLevel @map("region_level")
   regionCode  String?     @db.VarChar(12) @unique @map("region_code")
+
+  parent    SysRegion?   @relation("RegionHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  children  SysRegion[]  @relation("RegionHierarchy")
+  users     SysUser[]    @relation("UserRegion")
+  communities Community[] @relation("CommunityRegion")
 
   @@index([parentId])
   @@map("sys_region")
@@ -167,6 +201,8 @@ model SysOperationLog {
   ip                String?  @db.VarChar(50)
   userAgent         String?  @db.VarChar(500) @map("user_agent")
   createTime        DateTime @default(now()) @map("create_time")
+
+  user SysUser @relation("LogUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([userId])
   @@index([createTime])
