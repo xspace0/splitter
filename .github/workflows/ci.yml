@@ -50,7 +50,7 @@ jobs:
 
       - name: TypeScript 类型检查
         working-directory: server
-        run: npx tsc --noEmit
+        run: npx tsc -p tsconfig.typecheck.json
 
       - name: 单元测试
         working-directory: server
