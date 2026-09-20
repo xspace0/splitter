@@ -59,21 +59,21 @@ export interface CommunityUsersResult {
 }
 
 export function getAssignments(params: { userId?: string; communityId?: string }) {
-  return request.get('/permissions', { params }) as Promise<{ code: number; data: { list: AssignmentItem[]; total: number } }>;
+  return request.get<{ code: number; data: { list: AssignmentItem[]; total: number } }>('/permissions', { params });
 }
 
 export function getUserCommunities(userId: string) {
-  return request.get(`/permissions/user/${userId}`) as Promise<UserCommunitiesResult>;
+  return request.get<UserCommunitiesResult>(`/permissions/user/${userId}`);
 }
 
 export function getCommunityUsers(communityId: string) {
-  return request.get(`/permissions/community/${communityId}`) as Promise<CommunityUsersResult>;
+  return request.get<CommunityUsersResult>(`/permissions/community/${communityId}`);
 }
 
 export function assignPermission(data: { userId: string; communityIds: string[] }) {
-  return request.post('/permissions/assign', data) as Promise<{ code: number; data: { message: string; details: { communityId: string; action: string }[] } }>;
+  return request.post<{ code: number; data: { message: string; details: { communityId: string; action: string }[] } }>('/permissions/assign', data);
 }
 
 export function removePermission(data: { userId: string; communityIds: string[] }) {
-  return request.post('/permissions/remove', data) as Promise<{ code: number; data: { message: string; removed: number } }>;
+  return request.post<{ code: number; data: { message: string; removed: number } }>('/permissions/remove', data);
 }

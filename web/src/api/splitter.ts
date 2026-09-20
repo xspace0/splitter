@@ -49,15 +49,15 @@ export function getSplitters(params: {
   splitterLevel?: number;
   status?: number;
 }) {
-  return request.get('/splitters', { params }) as Promise<SplitterListResult>;
+  return request.get<SplitterListResult>('/splitters', { params });
 }
 
 export function getSplitterTree(communityId: string) {
-  return request.get(`/splitters/tree/${communityId}`) as Promise<SplitterTreeResult>;
+  return request.get<SplitterTreeResult>(`/splitters/tree/${communityId}`);
 }
 
 export function getSplitter(id: string) {
-  return request.get(`/splitters/${id}`) as Promise<{ code: number; data: SplitterItem }>;
+  return request.get<{ code: number; data: SplitterItem }>(`/splitters/${id}`);
 }
 
 export function createSplitter(data: {
@@ -72,7 +72,7 @@ export function createSplitter(data: {
   status?: number;
   remark?: string;
 }) {
-  return request.post('/splitters', data) as Promise<{ code: number; data: SplitterItem }>;
+  return request.post<{ code: number; data: SplitterItem }>('/splitters', data);
 }
 
 export function updateSplitter(
@@ -87,13 +87,13 @@ export function updateSplitter(
     remark?: string;
   },
 ) {
-  return request.put(`/splitters/${id}`, data) as Promise<{ code: number; data: SplitterItem }>;
+  return request.put<{ code: number; data: SplitterItem }>(`/splitters/${id}`, data);
 }
 
 export function updateSplitterStatus(id: string, status: number, faultType?: number) {
-  return request.post(`/splitters/${id}/status`, { status, faultType }) as Promise<{ code: number; data: SplitterItem }>;
+  return request.post<{ code: number; data: SplitterItem }>(`/splitters/${id}/status`, { status, faultType });
 }
 
 export function deleteSplitter(id: string) {
-  return request.delete(`/splitters/${id}`) as Promise<{ code: number; message: string }>;
+  return request.delete<{ code: number; message: string }>(`/splitters/${id}`);
 }

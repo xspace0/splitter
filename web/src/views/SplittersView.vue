@@ -179,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, h } from 'vue';
+import { ref, onMounted, computed, h, watch } from 'vue';
 import { getCommunities, type CommunityItem } from '@/api/community';
 import {
   getSplitterTree, getSplitters, createSplitter, updateSplitter, updateSplitterStatus, deleteSplitter,
@@ -211,6 +211,8 @@ const formData = ref({
 });
 
 const stats = ref({ total: 0, normal: 0, fault: 0, stopped: 0, building: 0 });
+// 父级设备候选（按所选社区 + 上一级别拉取，不受当前分页限制）
+const parentOptions = ref<SplitterItem[]>([]);
 
 const statusMap: Record<number, { label: string; tagClass: string }> = {
   1: { label: '正常', tagClass: 'tag-green' },
@@ -252,12 +254,40 @@ function getParentName(item: SplitterItem | SplitterTreeItem) {
 
 const availableParents = computed(() => {
   if (!formData.value.communityId) return [];
-  return tableData.value.filter((s) => {
+  // 从「按社区+父级级别单独拉取」的完整结果集里筛选，
+  // 不能只用当前分页的 tableData，否则父级在别的页时用户根本选不到
+  return parentOptions.value.filter((s) => {
     if (s.communityId !== formData.value.communityId) return false;
     if (isEdit.value && s.id === editingId.value) return false;
     return s.splitterLevel === formData.value.splitterLevel - 1;
   });
 });
+
+/** 拉取指定社区 + 指定级别的全部分光器，供父级下拉使用 */
+async function loadParentOptions(communityId: string, level: number) {
+  parentOptions.value = [];
+  if (!communityId || level < 2) return;
+  try {
+    const res = await getSplitters({
+      page: 1,
+      pageSize: 500,
+      communityId,
+      splitterLevel: level - 1,
+    });
+    parentOptions.value = res.data.list;
+  } catch (e) {
+    console.error('加载父级设备失败', e);
+  }
+}
+
+// 新增场景下切换级别时重新拉取可选父级（一级分光器无需父级）
+watch(
+  () => [formData.value.communityId, formData.value.splitterLevel] as const,
+  ([cid, lvl]) => {
+    if (!showModal.value || isEdit.value) return;
+    loadParentOptions(cid as string, lvl as number);
+  },
+);
 
 function toggleView() {
   viewMode.value = viewMode.value === 'table' ? 'tree' : 'table';
@@ -319,6 +349,8 @@ function handleCreate() {
     splitterName: '', communityId: filterCommunity.value, splitterLevel: 1, parentId: '',
     splitRatio: '', installLocation: '', longitude: '', latitude: '', status: 1, remark: '',
   };
+  parentOptions.value = [];
+  loadParentOptions(formData.value.communityId, formData.value.splitterLevel);
   showModal.value = true;
 }
 
@@ -329,6 +361,7 @@ function handleAddChild(parent: SplitterTreeItem) {
     splitterName: '', communityId: parent.communityId, splitterLevel: parent.splitterLevel + 1,
     parentId: parent.id, splitRatio: '', installLocation: '', longitude: '', latitude: '', status: 1, remark: '',
   };
+  loadParentOptions(formData.value.communityId, formData.value.splitterLevel);
   showModal.value = true;
 }
 
@@ -340,6 +373,8 @@ function handleEdit(item: SplitterItem | SplitterTreeItem) {
     parentId: item.parentId || '', splitRatio: item.splitRatio || '', installLocation: item.installLocation || '',
     longitude: item.longitude || '', latitude: item.latitude || '', status: item.status, remark: item.remark || '',
   };
+  parentOptions.value = [];
+  loadParentOptions(formData.value.communityId, formData.value.splitterLevel);
   showModal.value = true;
 }
 

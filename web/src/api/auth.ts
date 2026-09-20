@@ -24,34 +24,43 @@ export interface LoginResult {
   };
 }
 
-export interface ProfileResult {
+/**
+ * 后端统一响应信封。
+ * axios 响应拦截器（utils/request.ts）返回的是信封整体，而非其内部的 data 字段，
+ * 因此调用方需用 res.data.data 取业务数据。
+ */
+export interface ApiEnvelope<T> {
   code: number;
   message: string;
-  data: {
-    id: string;
-    account: string | null;
-    username: string;
-    roleType: string;
-    realNameVerified: number;
-    realNameAuthTime: string | null;
-    phone: string | null;
-    regionId: string;
-    lastLoginTime: string | null;
-  };
+  data: T;
 }
 
+export interface ProfileData {
+  id: string;
+  account: string | null;
+  username: string;
+  roleType: string;
+  realNameVerified: number;
+  realNameAuthTime: string | null;
+  phone: string | null;
+  regionId: string;
+  lastLoginTime: string | null;
+}
+
+export type ProfileResult = ApiEnvelope<ProfileData>;
+
 export function login(payload: LoginPayload) {
-  return request.post('/auth/login', payload) as Promise<LoginResult>;
+  return request.post<LoginResult>('/auth/login', payload);
 }
 
 export function getProfile() {
-  return request.get('/auth/profile') as Promise<ProfileResult>;
+  return request.get<ProfileResult>('/auth/profile');
 }
 
 export function changePassword(oldPassword: string, newPassword: string) {
-  return request.put('/auth/password', { oldPassword, newPassword }) as Promise<{ code: number; message: string }>;
+  return request.put<{ code: number; message: string }>('/auth/password', { oldPassword, newPassword });
 }
 
 export function updateProfile(data: { username?: string; phone?: string }) {
-  return request.put('/auth/profile', data) as Promise<{ code: number; message: string }>;
+  return request.put<{ code: number; message: string }>('/auth/profile', data);
 }

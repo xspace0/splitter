@@ -23,8 +23,8 @@ export function getLogs(params: {
   page?: number;
   pageSize?: number;
 }) {
-  return request.get('/logs', { params }) as Promise<{
+  return request.get<{
     code: number;
     data: { list: LogItem[]; total: number; page: number; pageSize: number };
-  }>;
+  }>('/logs', { params });
 }

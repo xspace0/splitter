@@ -129,6 +129,7 @@ async function loadProfile() {
   loading.value = true;
   try {
     const res = await getProfile();
+    // getProfile() 的类型是信封 ApiEnvelope<ProfileData>，用户信息在 res.data
     profile.value = res.data;
     profileForm.username = res.data.username;
     profileForm.phone = res.data.phone || '';

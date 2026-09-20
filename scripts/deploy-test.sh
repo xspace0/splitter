@@ -14,6 +14,14 @@ ENV_FILE=".env.test"
 COMPOSE_FILE="docker-compose.test.yml"
 BACKEND_PORT=3001
 
+# 载入环境变量（供 SQL 初始化等步骤使用 POSTGRES_DB 等配置）
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "./$ENV_FILE"
+  set +a
+fi
+
 echo "=========================================="
 echo "  Deploying test environment"
 echo "  SHA: $SHA"
@@ -60,6 +68,26 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" pull postgres redis
 # 重启容器
 echo "Starting containers..."
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d postgres redis $SERVICES
+
+# 应用初始数据与数据库层约束（幂等，可重复执行）
+# 这些 SQL 无法由 prisma db push 表达：部分唯一索引、静态字典表预置、孤儿引用修复
+if [ "$BACKEND_DEPLOYED" = "1" ]; then
+  echo "Applying seed/constraint SQL..."
+  PG_CONTAINER="$(docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps -q postgres)"
+  if [ -n "$PG_CONTAINER" ]; then
+    for sql_file in prisma/sql/seed-region.sql prisma/sql/partial-unique-indexes.sql; do
+      if [ -f "$sql_file" ]; then
+        echo "  -> $sql_file"
+        docker exec -i "$PG_CONTAINER" psql -U postgres -d "${POSTGRES_DB:-splitter_test}" -v ON_ERROR_STOP=1 \
+          < "$sql_file" >/dev/null || echo "     WARNING: $sql_file 执行失败（不影响启动）"
+      else
+        echo "  -> 跳过（不存在）：$sql_file"
+      fi
+    done
+  else
+    echo "  WARNING: 未找到 postgres 容器，跳过 SQL 初始化"
+  fi
+fi
 
 # 健康检查（最多等 60 秒）— 仅当后端部署时检查
 if [ "$BACKEND_DEPLOYED" = "1" ]; then

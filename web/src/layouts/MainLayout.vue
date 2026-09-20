@@ -104,16 +104,18 @@ const account = computed(() => profile.value?.account || '');
 
 async function loadProfile() {
   try {
-    const res = await getProfile();
-    profile.value = res.data;
+    const res: ProfileResult = await getProfile();
+    // 响应拦截器返回的是后端信封 { code, message, data }，用户信息在 res.data.data
+    const me = res.data;
+    profile.value = me;
     // 写入缓存供路由守卫使用
     setProfileCache({
-      id: res.data.id,
-      account: res.data.account || '',
-      username: res.data.username,
-      roleType: res.data.roleType,
-      realNameVerified: res.data.realNameVerified,
-      regionId: res.data.regionId || '',
+      id: me.id,
+      account: me.account || '',
+      username: me.username,
+      roleType: me.roleType,
+      realNameVerified: me.realNameVerified,
+      regionId: me.regionId || '',
     });
   } catch {
     profile.value = null;

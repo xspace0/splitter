@@ -23,22 +23,22 @@ export interface CommunityListResult {
 }
 
 export function getCommunities(params: { page?: number; pageSize?: number; keyword?: string; status?: number }) {
-  return request.get('/communities', { params }) as Promise<CommunityListResult>;
+  return request.get<CommunityListResult>('/communities', { params });
 }
 
 export function createCommunity(data: { communityName: string; remark?: string }) {
-  return request.post('/communities', data) as Promise<{ code: number; data: CommunityItem }>;
+  return request.post<{ code: number; data: CommunityItem }>('/communities', data);
 }
 
 export function updateCommunity(id: string, data: { communityName?: string; remark?: string }) {
-  return request.put(`/communities/${id}`, data) as Promise<{ code: number; data: CommunityItem }>;
+  return request.put<{ code: number; data: CommunityItem }>(`/communities/${id}`, data);
 }
 
 export function updateCommunityStatus(id: string, status: number) {
   const action = status === 1 ? 'enable' : 'disable';
-  return request.post(`/communities/${id}/${action}`) as Promise<{ code: number; data: CommunityItem }>;
+  return request.post<{ code: number; data: CommunityItem }>(`/communities/${id}/${action}`);
 }
 
 export function deleteCommunity(id: string) {
-  return request.delete(`/communities/${id}`) as Promise<{ code: number; message: string }>;
+  return request.delete<{ code: number; message: string }>(`/communities/${id}`);
 }

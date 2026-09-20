@@ -24,25 +24,25 @@ export interface UserListResult {
 }
 
 export function getUsers(params: { page?: number; pageSize?: number; keyword?: string; roleType?: string; status?: number }) {
-  return request.get('/users', { params }) as Promise<UserListResult>;
+  return request.get<UserListResult>('/users', { params });
 }
 
 export function createUser(data: { username: string; account: string; password: string; roleType: string; phone?: string; regionId?: string }) {
-  return request.post('/users', data) as Promise<{ code: number; data: UserItem }>;
+  return request.post<{ code: number; data: UserItem }>('/users', data);
 }
 
 export function updateUser(id: string, data: { username?: string; phone?: string }) {
-  return request.put(`/users/${id}`, data) as Promise<{ code: number; data: UserItem }>;
+  return request.put<{ code: number; data: UserItem }>(`/users/${id}`, data);
 }
 
 export function updateUserStatus(id: string, status: number) {
-  return request.put(`/users/${id}/status`, { status }) as Promise<{ code: number; data: UserItem }>;
+  return request.put<{ code: number; data: UserItem }>(`/users/${id}/status`, { status });
 }
 
 export function resetPassword(id: string, newPassword: string) {
-  return request.put(`/users/${id}/password`, { newPassword }) as Promise<{ code: number; message: string }>;
+  return request.put<{ code: number; message: string }>(`/users/${id}/password`, { newPassword });
 }
 
 export function updateUserRole(id: string, roleType: string) {
-  return request.put(`/users/${id}/role`, { roleType }) as Promise<{ code: number; data: UserItem }>;
+  return request.put<{ code: number; data: UserItem }>(`/users/${id}/role`, { roleType });
 }

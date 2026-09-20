@@ -14,25 +14,25 @@ export interface RegionTreeItem extends RegionItem {
 }
 
 export function getRegionTree(parentId?: string) {
-  return request.get(`/regions/tree${parentId ? `?parentId=${parentId}` : ''}`) as Promise<{ code: number; message: string; data: RegionTreeItem[] }>;
+  return request.get<{ code: number; message: string; data: RegionTreeItem[] }>(`/regions/tree${parentId ? `?parentId=${parentId}` : ''}`);
 }
 
 export function getRegionsByLevel(level: number) {
-  return request.get(`/regions?level=${level}`) as Promise<{ code: number; message: string; data: RegionItem[] }>;
+  return request.get<{ code: number; message: string; data: RegionItem[] }>(`/regions?level=${level}`);
 }
 
 export function getRegionChildren(parentId: string) {
-  return request.get(`/regions/${parentId}/children`) as Promise<{ code: number; message: string; data: RegionItem[] }>;
+  return request.get<{ code: number; message: string; data: RegionItem[] }>(`/regions/${parentId}/children`);
 }
 
 export function createRegion(data: Partial<RegionItem> & { regionLevel: number }) {
-  return request.post('/regions', data) as Promise<{ code: number; message: string; data: RegionItem }>;
+  return request.post<{ code: number; message: string; data: RegionItem }>('/regions', data);
 }
 
 export function updateRegion(id: string, data: Partial<RegionItem>) {
-  return request.put(`/regions/${id}`, data) as Promise<{ code: number; message: string; data: RegionItem }>;
+  return request.put<{ code: number; message: string; data: RegionItem }>(`/regions/${id}`, data);
 }
 
 export function deleteRegion(id: string) {
-  return request.delete(`/regions/${id}`) as Promise<{ code: number; message: string }>;
+  return request.delete<{ code: number; message: string }>(`/regions/${id}`);
 }
